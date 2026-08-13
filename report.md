@@ -111,8 +111,10 @@ sweeps per scene (`--passes 2`).
   segmenter).
 - Registration assumes the depth map is metrically consistent with the
   colour image and intrinsics (true for this dataset).
-- Runtime is ~5–30 s per scene on CPU (unoptimised research code; the grid
-  fallback dominates hard scenes).
+- Runtime is CPU-bound research code: typically 10–90 s per scene with the
+  default two detection sweeps, up to ~10 minutes on the densest piles
+  (the rotation-grid fallback dominates). `--passes 1` halves it at
+  roughly 0.04 AR cost.
 
 ## Repository layout
 
@@ -142,7 +144,8 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/eval_oracle_masks.py --root . --workers 6
 .venv/bin/python score.py --release . --split train --submission oracle_masks.json
 
-# Full pipeline on train, scored:
+# Full pipeline on train, scored (two detection sweeps by default;
+# add --passes 1 for a faster, slightly weaker run):
 .venv/bin/python scripts/run_pipeline.py --root . --split train --out pipeline_train.json --workers 6
 .venv/bin/python score.py --release . --split train --submission pipeline_train.json
 
