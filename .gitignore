@@ -1,0 +1,15 @@
+# Environment and caches
+.venv/
+__pycache__/
+*.pyc
+
+# The dataset ships separately and must not be redistributed
+train/
+test/
+model/
+
+# Working notes and intermediate outputs
+plans/
+oracle_masks.json
+pipeline_train.json
+pred_test/

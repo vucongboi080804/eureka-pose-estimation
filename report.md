@@ -1,0 +1,159 @@
+# 6-DoF Pose Estimation — Solution Report
+
+Multi-instance 6-DoF pose estimation of a known rigid part from RGB-D
+tray captures, evaluated by MSSD recall (AR over 2–10 mm thresholds).
+
+## Method overview
+
+The pipeline is classical RGB-D geometry — no learned components, so the 20
+labelled scenes serve purely as validation, and behaviour on the private
+test set is predictable. Per scene:
+
+1. **Colour segmentation** (`src/detect.py`). The part is saturated
+   orange-red on grey cardboard, a white or black tray; an HSV gate
+   (S ≥ 90, hue in the red band) recovers ~98% of part pixels. Connected
+   components of that mask are *piles*, not instances — instances are
+   separated geometrically in step 3.
+2. **Back-projection** (`src/scene_io.py`). Masked depth pixels lift to a
+   camera-frame point cloud (depth is registered to colour; intrinsics per
+   scene).
+3. **Seeded multi-instance extraction** (`src/detect.py`). Within each
+   component, repeatedly: take the point nearest the camera as a seed (top
+   of pile = least occluded = the instances the metric requires), carve a
+   55 mm sub-cloud around it, register it against the CAD model, verify,
+   accept, and remove the points the accepted pose explains. Every round
+   either accepts an instance or buries a dead seed, so the sweep
+   terminates. Saturated cardboard patches that pass the colour gate die
+   here: no pose over them ever verifies.
+4. **Registration of one instance** (`src/register.py`):
+   - *Global init*: FPFH features + RANSAC (Open3D), scene→model.
+   - *Refinement*: coarse-to-fine point-to-plane ICP (robust Tukey kernel
+     only in the fine stages — a robust kernel narrower than the remaining
+     misalignment freezes ICP).
+   - *Flip disambiguation*: the part is nearly 180°-symmetric about its own
+     axes, so every converged pose spawns three flipped rivals (π about
+     X/Y/Z through the model centroid); each is re-refined.
+   - *Depth-map verification* (`src/verify.py`): render-free z-buffer test
+     of the posed model against the observed depth. Pixels where the model
+     sits *in front* of the measured surface are physically impossible
+     ("free-space violation"); confidence = support − 2·violation.
+     Verification, not ICP fitness, picks between rivals — a flip explains
+     the visible surface but pokes through free space.
+   - *Rotation-grid fallback*: when nothing verifies (≥ 0.5), brute-force
+     60 orientations (Fibonacci directions × rolls), coarse-ICP each with
+     centroids aligned, fully refine the best few. This fixed 14 of the 15
+     hard instances that feature matching missed.
+   - *Polish* (`src/edge_refine.py`): depth quantised to 1 mm erases ~2 mm
+     of in-plane information (see Limitations); a final stage alternates a
+     deadzoned point-to-plane Gauss-Newton against the actual CAD mesh
+     (holds z + tilt) with hole-centre alignment — the part's through-holes
+     are instance-private, sub-pixel image features; matching predicted vs
+     observed hole centroids pins the in-plane shift (and roll, given ≥ 3
+     holes).
+5. **Scoring and NMS**. The submission `score` is the verification
+   confidence, so ranking (which drives matching order and top-1) prefers
+   well-verified poses. Duplicates are suppressed only when both position
+   (< 9 mm) and orientation (< 30°) nearly coincide — stacked parts sit one
+   thickness apart but never share orientation.
+
+## Results (train split, released scorer)
+
+| Setting                             | 2 mm  | 4 mm  | 6 mm  | 8 mm  | 10 mm | AR    | top-1 |
+| ----------------------------------- | ----- | ----- | ----- | ----- | ----- | ----- | ----- |
+| Oracle masks (registration ceiling) | 0.436 | 0.872 | 0.940 | 0.940 | 0.974 | 0.832 | 1.000 |
+| Full pipeline (detection + pose)    | 0.368 | 0.786 | 0.812 | 0.821 | 0.829 | 0.723 | 0.950 |
+
+Recall at each MSSD threshold, from the released `score.py` on the train
+split. "Oracle masks" feeds the ground-truth masks to registration,
+isolating pose quality from detection. Precision at 10 mm is 0.51: the
+pipeline deliberately predicts generously (unmatched predictions cost
+precision but never AR, and matches to sub-80%-visible instances are
+free), ranking everything by verification confidence so the top of the
+list stays clean — top-1 is 0.95.
+
+Numbers vary by roughly ±0.01 AR between runs: global registration is
+RANSAC-based, and the greedy extraction is path-dependent. The submission
+already averages much of this out by unioning two independent detection
+sweeps per scene (`--passes 2`).
+
+## Design notes and dead ends that shaped the method
+
+- **Scoring the metric, not the pixels.** MSSD is evaluated at convex-hull
+  vertices ~43 mm from the origin, so 1° of rotation error costs ~0.75 mm
+  of MSSD; the 2 mm threshold therefore demands ~1 mm / 1° accuracy.
+  Matches to instances below 80% visibility are free (neither TP nor FP),
+  so the pipeline predicts generously and lets `score` rank.
+- **Depth quantisation is the accuracy floor.** The depth PNGs are integer
+  millimetres. ICP initialised *at the ground truth* drifts ~2.4 mm away:
+  whole neighbourhoods of poses explain the quantised staircase equally
+  well. Deadzoned objectives, mesh-exact Gauss-Newton, denser model
+  sampling, and bilateral depth smoothing all still leave a ~2 mm in-plane
+  floor — that information is simply gone from the depth channel. This is
+  why 2 mm recall plateaus near 0.45 while 4 mm recall reaches ~0.9.
+- **Silhouette chamfer fails in piles.** Aligning the predicted rim to
+  class-colour edges seems natural, but every neighbour shares the part's
+  colour: rim points match the neighbour's edge, and the chamfer minimum
+  sits several pixels off the truth. Hole centroids do not have this
+  failure mode, which is why the polish uses them instead.
+- **Verification beats fitness.** ICP fitness cannot tell a correct pose
+  from a near-symmetric flip (both explain the visible surface); free-space
+  violation can. One instance in train remains wrong by design: its flipped
+  pose genuinely fits the observed depth better than the ground truth does
+  (support 0.81 vs 0.63) because the distinguishing boss is occluded.
+
+## Limitations
+
+- Instances lying so that no through-hole is visible keep depth-only
+  in-plane accuracy (~2 mm); their 2 mm-threshold recall is low.
+- The colour gate assumes the part stays saturated orange-red and the
+  background stays dull. A differently coloured part or background needs
+  the two HSV constants retuned (or the gate replaced by a small learned
+  segmenter).
+- Registration assumes the depth map is metrically consistent with the
+  colour image and intrinsics (true for this dataset).
+- Runtime is ~5–30 s per scene on CPU (unoptimised research code; the grid
+  fallback dominates hard scenes).
+
+## Repository layout
+
+```text
+src/
+  scene_io.py     scene loading, depth back-projection
+  model_cloud.py  CAD sampling + FPFH preparation (done once)
+  register.py     single-instance registration: RANSAC, ICP, flips,
+                  grid fallback, candidate selection
+  verify.py       depth-map verification (support / free-space violation)
+  edge_refine.py  final polish: deadzoned depth GN + hole-centre alignment
+  detect.py       colour gate, seeded multi-instance extraction, NMS
+scripts/
+  eval_oracle_masks.py  registration ceiling on GT masks
+  run_pipeline.py       full pipeline over a split (+ labels for visualize.py)
+report.md         this file
+submission.json   test-split predictions
+overlays_test/    predicted poses drawn on every test scene
+```
+
+## Reproducing
+
+```bash
+python -m venv .venv && .venv/bin/pip install -r requirements.txt
+
+# Validate registration alone (ground-truth masks):
+.venv/bin/python scripts/eval_oracle_masks.py --root . --workers 6
+.venv/bin/python score.py --release . --split train --submission oracle_masks.json
+
+# Full pipeline on train, scored:
+.venv/bin/python scripts/run_pipeline.py --root . --split train --out pipeline_train.json --workers 6
+.venv/bin/python score.py --release . --split train --submission pipeline_train.json
+
+# Test submission + overlays:
+.venv/bin/python scripts/run_pipeline.py --root . --split test --out submission.json --labels-out pred_test --workers 6
+.venv/bin/python visualize.py --root . --split test --labels pred_test --save overlays_test/
+```
+
+## Tools disclosure
+
+Developed with the assistance of Claude Code (Anthropic), used as a coding
+assistant for implementation, debugging and experiment automation under my
+direction. Libraries: Open3D (registration primitives), OpenCV, NumPy,
+SciPy, trimesh, matplotlib.

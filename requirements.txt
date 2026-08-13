@@ -1,0 +1,6 @@
+numpy>=1.26
+opencv-python>=4.9
+matplotlib>=3.8
+trimesh>=4.0
+scipy>=1.11
+open3d>=0.18
