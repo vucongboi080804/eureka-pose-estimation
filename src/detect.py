@@ -98,6 +98,48 @@ def part_pixel_mask(bgr: np.ndarray, erode_px: int = 0) -> np.ndarray:
     return mask > 0
 
 
+def foreground_depth_mask(depth: np.ndarray, K: np.ndarray,
+                          min_height: float = 0.006) -> np.ndarray:
+    """Colour-free foreground: everything standing off the support plane.
+
+    RANSAC-fits the dominant plane of the depth map (the table or tray
+    floor) and keeps pixels at least ``min_height`` above it. Works for a
+    part of any colour under any lighting; the price is that tray walls
+    also survive, which registration's verification then rejects.
+    """
+    from .scene_io import backproject_pixels
+
+    valid = depth > 0
+    points, rows, cols = backproject_pixels(depth, K, valid)
+    if len(points) < 1000:
+        return np.zeros_like(valid)
+    rng = np.random.default_rng(0)
+    best_inliers = 0
+    best = None
+    for _ in range(120):
+        trio = points[rng.choice(len(points), 3, replace=False)]
+        normal = np.cross(trio[1] - trio[0], trio[2] - trio[0])
+        norm = np.linalg.norm(normal)
+        if norm < 1e-9:
+            continue
+        normal = normal / norm
+        dist = np.abs((points - trio[0]) @ normal)
+        inliers = int((dist < 0.003).sum())
+        if inliers > best_inliers:
+            best_inliers, best = inliers, (normal, trio[0])
+    if best is None:
+        return np.zeros_like(valid)
+    normal, origin = best
+    if normal @ origin > 0:          # orient the normal towards the camera
+        normal = -normal
+    height = (points - origin) @ normal
+    mask = np.zeros_like(valid)
+    mask[rows[height > min_height], cols[height > min_height]] = True
+    mask = cv2.morphologyEx(mask.astype(np.uint8), cv2.MORPH_OPEN,
+                            np.ones((3, 3), np.uint8))
+    return mask > 0
+
+
 def observed_holes_3d(scene: Scene, part_mask: np.ndarray,
                       holes_uv: list) -> list:
     """Lift observed hole centres to camera-frame 3D points.
@@ -277,18 +319,28 @@ def nms(estimates: list) -> list:
 
 
 def detect_scene(scene: Scene, estimator: PoseEstimator,
-                 passes: int = 1) -> list:
+                 passes: int = 1, foreground: str = "colour") -> list:
     """All instances of one scene, best-verified first.
 
     ``passes`` reruns the whole sweep and unions the results: RANSAC makes
     the greedy extraction path-dependent, so independent sweeps drop
     *different* instances, and their union (deduplicated by NMS) recovers
     most of what any single sweep loses.
+
+    ``foreground`` selects how part pixels are found: "colour" (the HSV
+    gate, sharpest when the part keeps its colour) or "depth" (support-
+    plane removal — colour-blind, for parts or lighting the gate has
+    never seen).
     """
-    clean_mask = part_pixel_mask(scene.rgb)
+    if foreground == "depth":
+        clean_mask = foreground_depth_mask(scene.depth, scene.K)
+        mask = cv2.erode(clean_mask.astype(np.uint8),
+                         np.ones((3, 3), np.uint8), iterations=ERODE_PX) > 0
+    else:
+        clean_mask = part_pixel_mask(scene.rgb)
+        mask = part_pixel_mask(scene.rgb, erode_px=ERODE_PX)
     holes_3d = observed_holes_3d(scene, clean_mask,
                                  _mask_holes(clean_mask))
-    mask = part_pixel_mask(scene.rgb, erode_px=ERODE_PX)
     n_labels, labels = cv2.connectedComponents(mask.astype(np.uint8))
     found = []
     for _ in range(passes):
