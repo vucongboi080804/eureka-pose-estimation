@@ -57,6 +57,10 @@ def main():
     p.add_argument("--union", default=None,
                    help="Optional geometric-pipeline submission to merge "
                         "with (NMS dedupes)")
+    p.add_argument("--weights", default=None,
+                   help="Evaluate ONE model on every train scene instead "
+                        "of stitching folds. Only honest for a model that "
+                        "never saw the train split (e.g. synthetic-only).")
     args = p.parse_args()
 
     from ultralytics import YOLO
@@ -69,8 +73,15 @@ def main():
     model_cloud = load_model_cloud(
         os.path.join(args.root, "model", "3d_model.ply"))
     submission = {}
-    for fold, scene_ids in sorted(FOLD_VAL_SCENES.items()):
-        weights = os.path.join(args.runs, fold, "weights", "best.pt")
+    if args.weights:
+        all_scenes = sorted(s for fold in FOLD_VAL_SCENES.values()
+                            for s in fold)
+        plan = {"single": all_scenes}
+    else:
+        plan = FOLD_VAL_SCENES
+    for fold, scene_ids in sorted(plan.items()):
+        weights = args.weights or os.path.join(args.runs, fold,
+                                               "weights", "best.pt")
         model = YOLO(weights)
         for sid in scene_ids:
             scene = load_scene(args.root, "train", sid)
