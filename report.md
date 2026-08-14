@@ -5,15 +5,27 @@ tray captures, evaluated by MSSD recall (AR over 2–10 mm thresholds).
 
 ## Method overview
 
-The pipeline is classical RGB-D geometry — no learned components, so the 20
-labelled scenes serve purely as validation, and behaviour on the private
-test set is predictable. Per scene:
+The pipeline is a hybrid: a small learned segmenter proposes instances,
+and classical RGB-D geometry estimates and *verifies* every pose. The
+split follows the measured bottleneck — with ground-truth masks the
+geometric registration alone reaches AR 0.832, so nearly all of the
+end-to-end gap lived in instance segmentation, which is exactly the
+component a network learns best from few images. (The BOP 2024 evaluation
+reached the same conclusion for the field at large: 2D
+detection/segmentation, not pose refinement, dominates the error budget.)
 
-1. **Colour segmentation** (`src/detect.py`). The part is saturated
-   orange-red on grey cardboard, a white or black tray; an HSV gate
-   (S ≥ 90, hue in the red band) recovers ~98% of part pixels. Connected
-   components of that mask are *piles*, not instances — instances are
-   separated geometrically in step 3.
+Per scene:
+
+1. **Instance segmentation** (`src/detect_seg.py`). A YOLO11m-seg model
+   fine-tuned on the 20 train scenes (all labelled masks plus ignore
+   masks; rotation/flip augmentation) proposes instance masks. Honest
+   4-fold leave-scenes-out evaluation: mask mAP50 0.82–0.93 per fold.
+   A geometric fallback (`src/detect.py`) needs no GPU and no training:
+   an HSV colour gate (the part is saturated orange-red; ~98% pixel
+   recall) splits piles into smooth surface patches at depth steps and
+   normal breaks, registers them top-of-pile first, and carves out
+   explained points — it scores AR 0.723 on its own and remains the
+   no-training baseline.
 2. **Back-projection** (`src/scene_io.py`). Masked depth pixels lift to a
    camera-frame point cloud (depth is registered to colour; intrinsics per
    scene).
@@ -58,23 +70,25 @@ test set is predictable. Per scene:
 
 ## Results (train split, released scorer)
 
-| Setting                             | 2 mm  | 4 mm  | 6 mm  | 8 mm  | 10 mm | AR    | top-1 |
-| ----------------------------------- | ----- | ----- | ----- | ----- | ----- | ----- | ----- |
-| Oracle masks (registration ceiling) | 0.436 | 0.872 | 0.940 | 0.940 | 0.974 | 0.832 | 1.000 |
-| Full pipeline (detection + pose)    | 0.368 | 0.786 | 0.812 | 0.821 | 0.829 | 0.723 | 0.950 |
+| Setting                              | 2 mm  | 4 mm  | 6 mm  | 8 mm  | 10 mm | AR    | top-1 |
+| ------------------------------------ | ----- | ----- | ----- | ----- | ----- | ----- | ----- |
+| Oracle masks (registration ceiling)  | 0.436 | 0.872 | 0.940 | 0.940 | 0.974 | 0.832 | 1.000 |
+| Geometric detector (no training)     | 0.368 | 0.786 | 0.812 | 0.821 | 0.829 | 0.723 | 0.950 |
+| **Learned masks (submitted config)** | 0.487 | 0.855 | 0.906 | 0.906 | 0.915 | 0.814 | 1.000 |
 
 Recall at each MSSD threshold, from the released `score.py` on the train
 split. "Oracle masks" feeds the ground-truth masks to registration,
-isolating pose quality from detection. Precision at 10 mm is 0.51: the
-pipeline deliberately predicts generously (unmatched predictions cost
-precision but never AR, and matches to sub-80%-visible instances are
-free), ranking everything by verification confidence so the top of the
-list stays clean — top-1 is 0.95.
+isolating pose quality from detection. The learned-mask row is an honest
+number: it stitches four leave-scenes-out folds, so every scene is
+predicted by a model that never saw it. Its precision at 10 mm is 0.86.
 
-Numbers vary by roughly ±0.01 AR between runs: global registration is
-RANSAC-based, and the greedy extraction is path-dependent. The submission
-already averages much of this out by unioning two independent detection
-sweeps per scene (`--passes 2`).
+The learned-mask pipeline essentially closes the detection gap (0.814 vs
+the 0.832 oracle ceiling) and even beats the oracle at 2 mm — predicted
+masks avoid the ground-truth masks' occlusion-boundary pixels, giving
+registration cleaner clouds. Unioning the geometric detector on top adds
+only +0.003 AR while halving precision, so the submission uses learned
+masks alone; the geometric pipeline stands as the training-free fallback
+and the source of the verification machinery both paths share.
 
 ## Design notes and dead ends that shaped the method
 
@@ -111,25 +125,31 @@ sweeps per scene (`--passes 2`).
   segmenter).
 - Registration assumes the depth map is metrically consistent with the
   colour image and intrinsics (true for this dataset).
-- Runtime is CPU-bound research code: typically 10–90 s per scene with the
-  default two detection sweeps, up to ~10 minutes on the densest piles
-  (the rotation-grid fallback dominates). `--passes 1` halves it at
-  roughly 0.04 AR cost.
+- Runtime: the learned-mask path takes ~5–10 s per scene (GPU inference +
+  CPU registration). The geometric fallback is CPU-only research code:
+  typically 10–90 s per scene, up to ~10 minutes on the densest piles.
 
 ## Repository layout
 
 ```text
 src/
   scene_io.py     scene loading, depth back-projection
-  model_cloud.py  CAD sampling + FPFH preparation (done once)
+  model_cloud.py  CAD sampling, FPFH prep, through-hole discovery
   register.py     single-instance registration: RANSAC, ICP, flips,
-                  grid fallback, candidate selection
+                  grid fallback, hole-pair proposals, candidate selection
   verify.py       depth-map verification (support / free-space violation)
   edge_refine.py  final polish: deadzoned depth GN + hole-centre alignment
-  detect.py       colour gate, seeded multi-instance extraction, NMS
+  detect.py       geometric detector: colour gate, surface patches, NMS
+  detect_seg.py   learned-mask detector (ultralytics), same registration
+  surface_patches.py  smooth-surface splitting of piles
 scripts/
   eval_oracle_masks.py  registration ceiling on GT masks
   run_pipeline.py       full pipeline over a split (+ labels for visualize.py)
+  make_seg_dataset.py   train scenes -> YOLO-seg dataset (with folds)
+  eval_seg_folds.py     honest leave-scenes-out scoring of learned masks
+  merge_submissions.py  union of two submissions with NMS dedup
+weights/
+  part-seg.pt     YOLO11m-seg fine-tuned on all 20 train scenes
 report.md         this file
 submission.json   test-split predictions
 overlays_test/    predicted poses drawn on every test scene
@@ -173,13 +193,23 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/eval_oracle_masks.py --root . --workers 6
 .venv/bin/python score.py --release . --split train --submission oracle_masks.json
 
-# Full pipeline on train, scored (two detection sweeps by default;
-# add --passes 1 for a faster, slightly weaker run):
+# Geometric pipeline on train (no GPU, no training), scored:
 .venv/bin/python scripts/run_pipeline.py --root . --split train --out pipeline_train.json --workers 6
 .venv/bin/python score.py --release . --split train --submission pipeline_train.json
 
-# Test submission + overlays:
-.venv/bin/python scripts/run_pipeline.py --root . --split test --out submission.json --labels-out pred_test --workers 6
+# Honest leave-scenes-out scoring of the learned-mask pipeline
+# (retrains four fold models; needs a GPU):
+.venv/bin/python scripts/make_seg_dataset.py --root . --out seg_data/fold0 --val-scenes 000007 000014 000021 000033 000047
+# ... folds 1-3 as in scripts/eval_seg_folds.py, then per fold:
+.venv/bin/yolo segment train model=yolo11m-seg.pt data=seg_data/fold0/data.yaml \
+    project=seg_runs name=fold0 imgsz=960 epochs=250 patience=80 batch=4 \
+    amp=False optimizer=AdamW lr0=0.0002 cos_lr=True degrees=180 flipud=0.5 fliplr=0.5
+.venv/bin/python scripts/eval_seg_folds.py --root . --runs seg_runs --out seg_train.json
+.venv/bin/python score.py --release . --split train --submission seg_train.json
+
+# Test submission + overlays (uses the shipped weights):
+.venv/bin/python scripts/run_pipeline.py --root . --split test --out submission.json \
+    --labels-out pred_test --workers 6 --seg-model weights/part-seg.pt
 .venv/bin/python visualize.py --root . --split test --labels pred_test --save overlays_test/
 ```
 
@@ -188,4 +218,6 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 Developed with the assistance of Claude Code (Anthropic), used as a coding
 assistant for implementation, debugging and experiment automation under my
 direction. Libraries: Open3D (registration primitives), OpenCV, NumPy,
-SciPy, trimesh, matplotlib.
+SciPy, trimesh, matplotlib, and Ultralytics YOLO11 (instance
+segmentation, fine-tuned on the released train split only — no external
+data).

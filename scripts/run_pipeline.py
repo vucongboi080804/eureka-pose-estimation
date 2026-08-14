@@ -24,21 +24,26 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.detect import detect_scene, part_pixel_mask
+from src.detect_seg import detect_from_masks, masks_from_model
 from src.model_cloud import load_model_cloud
 from src.register import PoseEstimator
 from src.scene_io import list_scenes, load_scene
 
 _MODEL = None
 _MESH = None
+_SEG = None
 
 
-def _init_worker(ply_path):
-    global _MODEL, _MESH
+def _init_worker(ply_path, seg_weights=None):
+    global _MODEL, _MESH, _SEG
     os.environ.setdefault("OMP_NUM_THREADS", "2")
     _MODEL = load_model_cloud(ply_path)
     import trimesh
     m = trimesh.load(ply_path, force="mesh")
     _MESH = (np.asarray(m.vertices, dtype=np.float64), np.asarray(m.faces))
+    if seg_weights:
+        from ultralytics import YOLO
+        _SEG = YOLO(seg_weights)
 
 
 def _run_scene(args):
@@ -47,7 +52,11 @@ def _run_scene(args):
     estimator = PoseEstimator(_MODEL, scene.depth, scene.K,
                               part_mask=part_pixel_mask(scene.rgb))
     t0 = time.time()
-    found = detect_scene(scene, estimator, passes=passes)
+    if _SEG is not None:
+        found = detect_from_masks(scene, estimator,
+                                  masks_from_model(_SEG, scene.rgb))
+    else:
+        found = detect_scene(scene, estimator, passes=passes)
     preds = [{"R": e.R.tolist(), "t": e.t.tolist(),
               "score": round(e.confidence, 4)} for e in found]
 
@@ -90,6 +99,10 @@ def main():
                    help="Independent detection sweeps to union; RANSAC "
                         "luck differs per sweep, the union keeps what any "
                         "sweep finds")
+    p.add_argument("--seg-model", default=None,
+                   help="Ultralytics segmentation weights; when given, "
+                        "learned masks replace the geometric pile "
+                        "splitting (registration stack unchanged)")
     args = p.parse_args()
 
     ply = os.path.join(args.root, "model", "3d_model.ply")
@@ -101,12 +114,13 @@ def main():
 
     submission = {}
     if args.workers <= 1:
-        _init_worker(ply)
+        _init_worker(ply, args.seg_model)
         results = map(_run_scene, jobs)
     else:
         pool = ProcessPoolExecutor(max_workers=args.workers,
                                    mp_context=mp.get_context("spawn"),
-                                   initializer=_init_worker, initargs=(ply,))
+                                   initializer=_init_worker,
+                                   initargs=(ply, args.seg_model))
         results = pool.map(_run_scene, jobs)
     for scene_id, preds, dt in results:
         submission[scene_id] = preds

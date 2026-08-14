@@ -12,4 +12,10 @@ model/
 plans/
 oracle_masks.json
 pipeline_train.json
+pipeline_train_3pass.json
+seg_train.json
+seg_union_train.json
 pred_test/
+seg_data/
+seg_runs/
+yolo11m-seg.pt
