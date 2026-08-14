@@ -119,21 +119,27 @@ and the source of the verification machinery both paths share.
 
 - Instances lying so that no through-hole is visible keep depth-only
   in-plane accuracy (~2 mm); their 2 mm-threshold recall is low.
-- **Domain shift.** The segmenter was fine-tuned on 20 scenes; it
-  generalises across scenes of this capture setup (proven by
-  leave-scenes-out scoring) but will degrade under a genuinely new
-  environment — different lighting, backgrounds, camera, or part colour.
-  Two safeguards are built in: the depth-map verifier is
-  environment-agnostic, so bad masks produce *low-confidence* poses
-  rather than confident mistakes; and when fewer than two detections in a
-  scene verify well, the training-free geometric detector automatically
-  sweeps the scene too (`detect_scene_hybrid`). Verified by simulating a
-  total segmenter failure: the fallback recovers the scene at nearly full
-  quality. The production-grade fix is synthetic PBR training data
-  rendered from the CAD (BlenderProc) with domain randomisation.
-- The geometric fallback's colour gate assumes the part stays saturated
-  orange-red and the background stays dull; a different part colour needs
-  the two HSV constants retuned.
+- **Domain shift.** The submitted segmenter was fine-tuned on 20 real
+  scenes; it generalises across scenes of this capture setup (proven by
+  leave-scenes-out scoring) but a genuinely new environment costs
+  accuracy. The system is layered against that, and every layer is
+  measured:
+
+  | Tier | Needs | AR (train) |
+  | ---- | ----- | ---------- |
+  | Real-trained segmenter (submitted) | this environment | 0.814 |
+  | **Synthetic-only segmenter** (`scripts/render_synthetic.py`) | nothing real: trained purely on domain-randomised CAD renders — random part colours, lighting, trays, backgrounds | 0.793 (zero-shot on the real scenes) |
+  | Geometric detector, colour gate | the part's colour | 0.723 |
+  | Geometric detector, depth foreground (`foreground="depth"`) | nothing but depth | recovers most instances, colour-blind |
+
+  The depth-map verifier is environment-agnostic throughout — bad masks
+  produce *low-confidence* poses, never confident mistakes — and when a
+  scene yields fewer than two well-verified detections the next tier
+  engages automatically (`detect_scene_hybrid`). A **new part** needs no
+  code at all: `scripts/onboard_new_part.py` renders and trains a
+  segmenter from its CAD with zero hand labels, and the pose stack
+  (registration, flips, grid, hole discovery) already reads any CAD at
+  load time.
 - Registration assumes the depth map is metrically consistent with the
   colour image and intrinsics (true for this dataset).
 - Runtime: the learned-mask path takes ~5–10 s per scene (GPU inference +
