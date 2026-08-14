@@ -24,7 +24,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.detect import detect_scene, part_pixel_mask
-from src.detect_seg import detect_from_masks, masks_from_model
+from src.detect_seg import detect_scene_hybrid
 from src.model_cloud import load_model_cloud
 from src.register import PoseEstimator
 from src.scene_io import list_scenes, load_scene
@@ -53,8 +53,7 @@ def _run_scene(args):
                               part_mask=part_pixel_mask(scene.rgb))
     t0 = time.time()
     if _SEG is not None:
-        found = detect_from_masks(scene, estimator,
-                                  masks_from_model(_SEG, scene.rgb))
+        found = detect_scene_hybrid(scene, estimator, _SEG)
     else:
         found = detect_scene(scene, estimator, passes=passes)
     preds = [{"R": e.R.tolist(), "t": e.t.tolist(),

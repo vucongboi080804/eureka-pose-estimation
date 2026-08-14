@@ -119,10 +119,21 @@ and the source of the verification machinery both paths share.
 
 - Instances lying so that no through-hole is visible keep depth-only
   in-plane accuracy (~2 mm); their 2 mm-threshold recall is low.
-- The colour gate assumes the part stays saturated orange-red and the
-  background stays dull. A differently coloured part or background needs
-  the two HSV constants retuned (or the gate replaced by a small learned
-  segmenter).
+- **Domain shift.** The segmenter was fine-tuned on 20 scenes; it
+  generalises across scenes of this capture setup (proven by
+  leave-scenes-out scoring) but will degrade under a genuinely new
+  environment — different lighting, backgrounds, camera, or part colour.
+  Two safeguards are built in: the depth-map verifier is
+  environment-agnostic, so bad masks produce *low-confidence* poses
+  rather than confident mistakes; and when fewer than two detections in a
+  scene verify well, the training-free geometric detector automatically
+  sweeps the scene too (`detect_scene_hybrid`). Verified by simulating a
+  total segmenter failure: the fallback recovers the scene at nearly full
+  quality. The production-grade fix is synthetic PBR training data
+  rendered from the CAD (BlenderProc) with domain randomisation.
+- The geometric fallback's colour gate assumes the part stays saturated
+  orange-red and the background stays dull; a different part colour needs
+  the two HSV constants retuned.
 - Registration assumes the depth map is metrically consistent with the
   colour image and intrinsics (true for this dataset).
 - Runtime: the learned-mask path takes ~5–10 s per scene (GPU inference +

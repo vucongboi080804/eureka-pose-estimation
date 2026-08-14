@@ -8,7 +8,7 @@ verification stack stays -- learned masks propose, depth physics disposes.
 import cv2
 import numpy as np
 
-from .detect import MIN_CONFIDENCE, nms
+from .detect import MIN_CONFIDENCE, detect_scene, nms
 from .register import PoseEstimator
 from .scene_io import Scene, backproject
 
@@ -17,6 +17,13 @@ ERODE_PX = 2
 
 #: Predicted masks smaller than this cannot hold a registrable instance.
 MIN_MASK_PX = 1200
+
+#: Domain-shift guard: when fewer than this many detections verify at least
+#: this well, the segmenter is assumed to be out of its depth (new lighting,
+#: background, or part appearance) and the training-free geometric detector
+#: joins in.
+FALLBACK_MIN_STRONG = 2
+FALLBACK_STRONG_CONF = 0.5
 
 
 def detect_from_masks(scene: Scene, estimator: PoseEstimator,
@@ -48,6 +55,24 @@ def detect_from_masks(scene: Scene, estimator: PoseEstimator,
             continue
         found.append(est)
     return nms(found)
+
+
+def detect_scene_hybrid(scene: Scene, estimator: PoseEstimator,
+                        seg_model) -> list:
+    """Learned masks first; geometric detector as a domain-shift safety net.
+
+    The verifier is environment-agnostic — a wrong pose fails the
+    free-space check no matter where its mask came from — so a collapse of
+    verified detections is a reliable sign the segmenter left its training
+    domain. In that case the colour-and-geometry detector (which needs no
+    training) sweeps the scene too, and the union is deduplicated.
+    """
+    found = detect_from_masks(scene, estimator,
+                              masks_from_model(seg_model, scene.rgb))
+    strong = [e for e in found if e.confidence >= FALLBACK_STRONG_CONF]
+    if len(strong) >= FALLBACK_MIN_STRONG:
+        return found
+    return nms(found + detect_scene(scene, estimator))
 
 
 def masks_from_model(model, bgr: np.ndarray, conf: float = 0.4) -> list:
