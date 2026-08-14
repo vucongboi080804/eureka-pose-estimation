@@ -135,6 +135,35 @@ submission.json   test-split predictions
 overlays_test/    predicted poses drawn on every test scene
 ```
 
+## Toward production deployment
+
+The assignment metric is stricter than the production task. A robot picks
+*one* part per cycle, then the scene changes: the natural loop is pick the
+highest-confidence instance, rescan, repeat. That loop is governed by
+top-1 (0.95–1.00 here), not full-scene AR, and every pick thins the pile
+so the hard instances become easy ones. The submission `score`
+(verification confidence) is designed to gate this: picks below a
+threshold are skipped in favour of a rescan or another instance.
+
+A staged rollout would follow the usual cell-integration path — calibrate
+(intrinsics, depth↔RGB registration, hand–eye), collect on-site scenes as
+a permanent regression set, run in shadow mode against operators, then
+integrate with the grasp planner and PLC error paths (low confidence →
+rescan/shake; empty tray → signal). In operation, the gripper's own
+success sensor labels every pick for free, which feeds drift monitoring
+and continuous evaluation.
+
+On accuracy, the measured bottleneck is the sensor, not the algorithm:
+depth here is quantised to 1 mm, and that alone erases ~2 mm of in-plane
+pose information (ICP initialised at the ground truth drifts ~2.4 mm).
+An industrial structured-light camera (30–100 µm noise) would let this
+same registration stack settle near its ~0.3–0.5 mm verification floor
+without algorithmic changes. Beyond that, the highest-value upgrades are
+in-hand verification before placement when assembly-grade accuracy is
+needed, a learned segmenter (trained on the self-labelled site data)
+replacing the colour gate for robustness to part/background changes, and
+a wrist-mounted second viewpoint for steeply leaning parts.
+
 ## Reproducing
 
 ```bash
