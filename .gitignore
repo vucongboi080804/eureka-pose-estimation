@@ -20,3 +20,5 @@ seg_data/
 seg_runs/
 yolo11m-seg.pt
 /*.pt
+seg_runs_l/
+seg_l_train.json

@@ -64,6 +64,8 @@ def main():
     p.add_argument("--extra-weights", default=None,
                    help="Second segmenter whose masks join the proposal "
                         "pool (e.g. the synthetic-only model).")
+    p.add_argument("--attempts", type=int, default=3,
+                   help="RANSAC restart budget per mask")
     p.add_argument("--conf", type=float, default=0.4,
                    help="Segmentation confidence floor for proposals")
     args = p.parse_args()
@@ -96,7 +98,8 @@ def main():
             masks = masks_from_model(model, scene.rgb, conf=args.conf)
             if extra is not None:
                 masks += masks_from_model(extra, scene.rgb, conf=args.conf)
-            found = detect_from_masks(scene, estimator, masks)
+            found = detect_from_masks(scene, estimator, masks,
+                                      attempts=args.attempts)
             rows = [{"R": e.R.tolist(), "t": e.t.tolist(),
                      "score": round(e.submission_score, 4)} for e in found]
             rows = merge_nms(rows + geometric.get(sid, []))

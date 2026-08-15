@@ -16,10 +16,10 @@ detection/segmentation, not pose refinement, dominates the error budget.)
 
 Per scene:
 
-1. **Instance segmentation** (`src/detect_seg.py`). A YOLO11m-seg model
+1. **Instance segmentation** (`src/detect_seg.py`). A YOLO11l-seg model
    fine-tuned on the 20 train scenes (all labelled masks plus ignore
    masks; rotation/flip augmentation) proposes instance masks. Honest
-   4-fold leave-scenes-out evaluation: mask mAP50 0.82–0.93 per fold.
+   4-fold leave-scenes-out evaluation: mask mAP50 0.79–0.93 per fold.
    A geometric fallback (`src/detect.py`) needs no GPU and no training:
    an HSV colour gate (the part is saturated orange-red; ~98% pixel
    recall) splits piles into smooth surface patches at depth steps and
@@ -79,8 +79,8 @@ Per scene:
 | -------------------------------------- | ----- | ----- | ----- | ----- | ----- | ----- | ----- |
 | Oracle masks (registration ceiling)    | 0.436 | 0.872 | 0.940 | 0.940 | 0.974 | 0.832 | 1.000 |
 | Geometric detector (no training)       | 0.368 | 0.786 | 0.812 | 0.821 | 0.829 | 0.723 | 0.950 |
-| Learned masks, real-trained            | 0.487 | 0.855 | 0.906 | 0.906 | 0.915 | 0.814 | 1.000 |
-| **Two-segmenter ensemble (submitted)** | 0.521 | 0.889 | 0.923 | 0.923 | 0.932 | 0.838 | 1.000 |
+| Learned masks, real-trained (YOLO11m)  | 0.487 | 0.855 | 0.906 | 0.906 | 0.915 | 0.814 | 1.000 |
+| **Two-segmenter ensemble (submitted)** | 0.513 | 0.889 | 0.932 | 0.940 | 0.949 | 0.844 | 1.000 |
 
 Recall at each MSSD threshold, from the released `score.py` on the train
 split. "Oracle masks" feeds the ground-truth masks to registration,

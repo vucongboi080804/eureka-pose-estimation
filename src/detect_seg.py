@@ -27,7 +27,7 @@ FALLBACK_STRONG_CONF = 0.5
 
 
 def detect_from_masks(scene: Scene, estimator: PoseEstimator,
-                      masks: list) -> list:
+                      masks: list, attempts: int = 3) -> list:
     """Register one scene's learned instance masks.
 
     Args:
