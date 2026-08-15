@@ -61,6 +61,11 @@ def main():
                    help="Evaluate ONE model on every train scene instead "
                         "of stitching folds. Only honest for a model that "
                         "never saw the train split (e.g. synthetic-only).")
+    p.add_argument("--extra-weights", default=None,
+                   help="Second segmenter whose masks join the proposal "
+                        "pool (e.g. the synthetic-only model).")
+    p.add_argument("--conf", type=float, default=0.4,
+                   help="Segmentation confidence floor for proposals")
     args = p.parse_args()
 
     from ultralytics import YOLO
@@ -79,6 +84,7 @@ def main():
         plan = {"single": all_scenes}
     else:
         plan = FOLD_VAL_SCENES
+    extra = YOLO(args.extra_weights) if args.extra_weights else None
     for fold, scene_ids in sorted(plan.items()):
         weights = args.weights or os.path.join(args.runs, fold,
                                                "weights", "best.pt")
@@ -87,10 +93,12 @@ def main():
             scene = load_scene(args.root, "train", sid)
             estimator = PoseEstimator(model_cloud, scene.depth, scene.K,
                                       part_mask=part_pixel_mask(scene.rgb))
-            masks = masks_from_model(model, scene.rgb)
+            masks = masks_from_model(model, scene.rgb, conf=args.conf)
+            if extra is not None:
+                masks += masks_from_model(extra, scene.rgb, conf=args.conf)
             found = detect_from_masks(scene, estimator, masks)
             rows = [{"R": e.R.tolist(), "t": e.t.tolist(),
-                     "score": round(e.confidence, 4)} for e in found]
+                     "score": round(e.submission_score, 4)} for e in found]
             rows = merge_nms(rows + geometric.get(sid, []))
             submission[sid] = rows
             print("%s %s: %d masks -> %d predictions"

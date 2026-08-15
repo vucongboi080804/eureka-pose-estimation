@@ -75,6 +75,12 @@ class PoseEstimate:
     def confidence(self) -> float:
         return self.verdict.confidence
 
+    @property
+    def submission_score(self) -> float:
+        """Joint belief for ranking: pose verification times the proposing
+        segmenter's confidence (1.0 when no segmenter was involved)."""
+        return self.confidence * getattr(self, "seg_conf", 1.0)
+
 
 def make_scene_cloud(points: np.ndarray, voxel: float) -> o3d.geometry.PointCloud:
     """Downsampled scene cloud with camera-facing normals.

@@ -70,25 +70,31 @@ Per scene:
 
 ## Results (train split, released scorer)
 
-| Setting                              | 2 mm  | 4 mm  | 6 mm  | 8 mm  | 10 mm | AR    | top-1 |
-| ------------------------------------ | ----- | ----- | ----- | ----- | ----- | ----- | ----- |
-| Oracle masks (registration ceiling)  | 0.436 | 0.872 | 0.940 | 0.940 | 0.974 | 0.832 | 1.000 |
-| Geometric detector (no training)     | 0.368 | 0.786 | 0.812 | 0.821 | 0.829 | 0.723 | 0.950 |
-| **Learned masks (submitted config)** | 0.487 | 0.855 | 0.906 | 0.906 | 0.915 | 0.814 | 1.000 |
+| Setting                                | 2 mm  | 4 mm  | 6 mm  | 8 mm  | 10 mm | AR    | top-1 |
+| -------------------------------------- | ----- | ----- | ----- | ----- | ----- | ----- | ----- |
+| Oracle masks (registration ceiling)    | 0.436 | 0.872 | 0.940 | 0.940 | 0.974 | 0.832 | 1.000 |
+| Geometric detector (no training)       | 0.368 | 0.786 | 0.812 | 0.821 | 0.829 | 0.723 | 0.950 |
+| Learned masks, real-trained            | 0.487 | 0.855 | 0.906 | 0.906 | 0.915 | 0.814 | 1.000 |
+| **Two-segmenter ensemble (submitted)** | 0.521 | 0.889 | 0.923 | 0.923 | 0.932 | 0.838 | 1.000 |
 
 Recall at each MSSD threshold, from the released `score.py` on the train
 split. "Oracle masks" feeds the ground-truth masks to registration,
-isolating pose quality from detection. The learned-mask row is an honest
-number: it stitches four leave-scenes-out folds, so every scene is
-predicted by a model that never saw it. Its precision at 10 mm is 0.86.
+isolating pose quality from detection. Learned-mask rows are honest
+numbers: they stitch four leave-scenes-out folds, so every scene is
+predicted by a model that never saw it.
 
-The learned-mask pipeline essentially closes the detection gap (0.814 vs
-the 0.832 oracle ceiling) and even beats the oracle at 2 mm — predicted
-masks avoid the ground-truth masks' occlusion-boundary pixels, giving
-registration cleaner clouds. Unioning the geometric detector on top adds
-only +0.003 AR while halving precision, so the submission uses learned
-masks alone; the geometric pipeline stands as the training-free fallback
-and the source of the verification machinery both paths share.
+The submitted configuration pools proposals from two segmenters — the
+real-trained model and the synthetic-only model — at a low confidence
+floor (0.25), lets depth verification kill the wrong ones, and ranks
+predictions by the *joint* score (segmenter confidence × pose
+verification). The joint ranking is what keeps top-1 perfect while the
+extra proposals lift recall: it beats even the oracle-mask ceiling,
+because predicted masks avoid the ground-truth masks' occlusion-boundary
+pixels and two segmenters miss different instances. The price is
+precision (0.55 at 10 mm, vs 0.86 for the single-segmenter config) —
+unmatched low-score proposals cost precision but never AR or top-1, and
+a `score`-threshold of 0.4 recovers the high-precision operating point
+when a deployment wants it.
 
 ## Design notes and dead ends that shaped the method
 
@@ -202,6 +208,15 @@ replacing the colour gate for robustness to part/background changes, and
 a wrist-mounted second viewpoint for steeply leaning parts.
 
 ## Reproducing
+
+Quickest path — one command against any release folder (auto-scores when
+ground truth ships next to the images):
+
+```bash
+./run_all.sh <release_path> [split]
+```
+
+Full pipeline, step by step:
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -r requirements.txt

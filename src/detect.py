@@ -303,7 +303,7 @@ def nms(estimates: list) -> list:
     """Drop the lower-confidence member of any pair that is really the same
     detection: nearly the same position *and* orientation."""
     kept = []
-    for est in sorted(estimates, key=lambda e: -e.confidence):
+    for est in sorted(estimates, key=lambda e: -e.submission_score):
         duplicate = False
         for k in kept:
             if np.linalg.norm(est.t - k.t) > NMS_DIST:

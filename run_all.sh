@@ -24,7 +24,7 @@ mkdir -p "$OUT"
 echo "== Detecting and estimating poses ($RELEASE / $SPLIT) =="
 $PY scripts/run_pipeline.py --root "$RELEASE" --split "$SPLIT" \
     --out "$OUT/submission.json" --labels-out "$OUT/pred_labels" \
-    --workers 6 --seg-model weights/part-seg.pt
+    --workers 6 --seg-model weights/part-seg.pt --extra-seg-model weights/part-seg-synthetic.pt
 
 echo "== Rendering overlays =="
 MPLBACKEND=Agg $PY visualize.py --root "$RELEASE" --split "$SPLIT" \

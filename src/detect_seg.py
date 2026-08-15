@@ -39,7 +39,7 @@ def detect_from_masks(scene: Scene, estimator: PoseEstimator,
         Verified pose estimates, deduplicated.
     """
     found = []
-    for mask, _ in sorted(masks, key=lambda m: -m[1]):
+    for mask, seg_conf in sorted(masks, key=lambda m: -m[1]):
         if mask.sum() < MIN_MASK_PX:
             continue
         slim = cv2.erode(mask.astype(np.uint8), np.ones((3, 3), np.uint8),
@@ -53,22 +53,35 @@ def detect_from_masks(scene: Scene, estimator: PoseEstimator,
         est = estimator.estimate(points, attempts=3, anchor=anchor)
         if est is None or est.confidence < MIN_CONFIDENCE:
             continue
+        # Submission rank = joint belief: how much the segmenter trusted
+        # the proposal times how well the pose verifies. Low-confidence
+        # proposals may still land true poses (good for recall), but they
+        # must not outrank solid ones -- ranking decides top-1.
+        est.seg_conf = seg_conf
         found.append(est)
     return nms(found)
 
 
 def detect_scene_hybrid(scene: Scene, estimator: PoseEstimator,
-                        seg_model) -> list:
+                        seg_model, extra_model=None,
+                        conf: float = 0.25) -> list:
     """Learned masks first; geometric detector as a domain-shift safety net.
+
+    ``extra_model`` widens the proposal pool (e.g. the synthetic-only
+    segmenter): proposals cost only registration time, wrong ones die in
+    verification, and the joint submission score keeps weak proposals
+    from outranking solid ones.
 
     The verifier is environment-agnostic — a wrong pose fails the
     free-space check no matter where its mask came from — so a collapse of
-    verified detections is a reliable sign the segmenter left its training
-    domain. In that case the colour-and-geometry detector (which needs no
-    training) sweeps the scene too, and the union is deduplicated.
+    verified detections is a reliable sign the segmenters left their
+    training domain. In that case the colour-and-geometry detector (which
+    needs no training) sweeps the scene too, and the union is deduplicated.
     """
-    found = detect_from_masks(scene, estimator,
-                              masks_from_model(seg_model, scene.rgb))
+    masks = masks_from_model(seg_model, scene.rgb, conf=conf)
+    if extra_model is not None:
+        masks += masks_from_model(extra_model, scene.rgb, conf=conf)
+    found = detect_from_masks(scene, estimator, masks)
     strong = [e for e in found if e.confidence >= FALLBACK_STRONG_CONF]
     if len(strong) >= FALLBACK_MIN_STRONG:
         return found
