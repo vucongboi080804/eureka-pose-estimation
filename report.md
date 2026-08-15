@@ -29,14 +29,17 @@ Per scene:
 2. **Back-projection** (`src/scene_io.py`). Masked depth pixels lift to a
    camera-frame point cloud (depth is registered to colour; intrinsics per
    scene).
-3. **Seeded multi-instance extraction** (`src/detect.py`). Within each
-   component, repeatedly: take the point nearest the camera as a seed (top
-   of pile = least occluded = the instances the metric requires), carve a
-   55 mm sub-cloud around it, register it against the CAD model, verify,
-   accept, and remove the points the accepted pose explains. Every round
-   either accepts an instance or buries a dead seed, so the sweep
-   terminates. Saturated cardboard patches that pass the colour gate die
-   here: no pose over them ever verifies.
+3. **Multi-instance extraction** (`src/detect.py`, geometric path). Each
+   pile splits into smooth surface patches (`src/surface_patches.py`) —
+   surfaces break, in depth or normal direction, exactly where one part
+   ends and the next begins, so a patch belongs to a single instance.
+   Patches register top-of-pile first (least occluded = the instances the
+   metric requires); every accepted pose consumes the points it explains,
+   and a pose is accepted only if it explains ≥150 points of the patch
+   that proposed it, so the sweep always terminates. Flat coplanar
+   neighbours merge into one patch; matched through-hole pairs crack
+   those. Saturated cardboard that passes the colour gate dies here: no
+   pose over it ever verifies.
 4. **Registration of one instance** (`src/register.py`):
    - *Global init*: FPFH features + RANSAC (Open3D), scene→model.
    - *Refinement*: coarse-to-fine point-to-plane ICP (robust Tukey kernel
@@ -52,9 +55,10 @@ Per scene:
      Verification, not ICP fitness, picks between rivals — a flip explains
      the visible surface but pokes through free space.
    - *Rotation-grid fallback*: when nothing verifies (≥ 0.5), brute-force
-     60 orientations (Fibonacci directions × rolls), coarse-ICP each with
-     centroids aligned, fully refine the best few. This fixed 14 of the 15
-     hard instances that feature matching missed.
+     a Fibonacci-sphere rotation grid (60 orientations; 192 when a pile
+     seed anchors the translation), coarse-ICP each, rank by the depth-map
+     verdict and fully refine the best few. This fixed 14 of the 15 hard
+     instances that feature matching missed.
    - *Polish* (`src/edge_refine.py`): depth quantised to 1 mm erases ~2 mm
      of in-plane information (see Limitations); a final stage alternates a
      deadzoned point-to-plane Gauss-Newton against the actual CAD mesh
@@ -62,9 +66,10 @@ Per scene:
      are instance-private, sub-pixel image features; matching predicted vs
      observed hole centroids pins the in-plane shift (and roll, given ≥ 3
      holes).
-5. **Scoring and NMS**. The submission `score` is the verification
-   confidence, so ranking (which drives matching order and top-1) prefers
-   well-verified poses. Duplicates are suppressed only when both position
+5. **Scoring and NMS**. The submission `score` is the joint belief:
+   segmenter confidence × pose verification. Ranking drives matching
+   order and top-1, so weak proposals may add recall but can never
+   outrank solid poses. Duplicates are suppressed only when both position
    (< 9 mm) and orientation (< 30°) nearly coincide — stacked parts sit one
    thickness apart but never share orientation.
 
@@ -109,7 +114,7 @@ when a deployment wants it.
   well. Deadzoned objectives, mesh-exact Gauss-Newton, denser model
   sampling, and bilateral depth smoothing all still leave a ~2 mm in-plane
   floor — that information is simply gone from the depth channel. This is
-  why 2 mm recall plateaus near 0.45 while 4 mm recall reaches ~0.9.
+  why 2 mm recall plateaus near 0.5 while 4 mm recall reaches ~0.9.
 - **Silhouette chamfer fails in piles.** Aligning the predicted rim to
   class-colour edges seems natural, but every neighbour shares the part's
   colour: rim points match the neighbour's edge, and the chamfer minimum
@@ -171,8 +176,12 @@ scripts/
   make_seg_dataset.py   train scenes -> YOLO-seg dataset (with folds)
   eval_seg_folds.py     honest leave-scenes-out scoring of learned masks
   merge_submissions.py  union of two submissions with NMS dedup
+  render_synthetic.py   domain-randomised CAD renders + YOLO labels
+  onboard_new_part.py   one command: new CAD -> render -> train segmenter
 weights/
-  part-seg.pt     YOLO11m-seg fine-tuned on all 20 train scenes
+  part-seg.pt            YOLO11m-seg fine-tuned on the 20 train scenes
+  part-seg-synthetic.pt  trained purely on 1140 synthetic renders
+run_all.sh        one-command evaluation on any release folder
 report.md         this file
 submission.json   test-split predictions
 overlays_test/    predicted poses drawn on every test scene
@@ -239,9 +248,10 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/eval_seg_folds.py --root . --runs seg_runs --out seg_train.json
 .venv/bin/python score.py --release . --split train --submission seg_train.json
 
-# Test submission + overlays (uses the shipped weights):
+# Test submission + overlays (the submitted two-segmenter configuration):
 .venv/bin/python scripts/run_pipeline.py --root . --split test --out submission.json \
-    --labels-out pred_test --workers 6 --seg-model weights/part-seg.pt
+    --labels-out pred_test --workers 6 \
+    --seg-model weights/part-seg.pt --extra-seg-model weights/part-seg-synthetic.pt
 .venv/bin/python visualize.py --root . --split test --labels pred_test --save overlays_test/
 ```
 
@@ -250,6 +260,7 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 Developed with the assistance of Claude Code (Anthropic), used as a coding
 assistant for implementation, debugging and experiment automation under my
 direction. Libraries: Open3D (registration primitives), OpenCV, NumPy,
-SciPy, trimesh, matplotlib, and Ultralytics YOLO11 (instance
-segmentation, fine-tuned on the released train split only — no external
-data).
+SciPy, trimesh, matplotlib, Ultralytics YOLO11 (instance segmentation)
+and BlenderProc (synthetic rendering). No external data: the segmenters
+are trained only on the released train split and on synthetic scenes
+rendered from the released CAD.
