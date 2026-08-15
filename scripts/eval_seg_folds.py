@@ -64,6 +64,9 @@ def main():
     p.add_argument("--extra-weights", default=None,
                    help="Second segmenter whose masks join the proposal "
                         "pool (e.g. the synthetic-only model).")
+    p.add_argument("--extra-runs", default=None,
+                   help="Second per-fold runs dir whose fold models also "
+                        "join the proposal pool.")
     p.add_argument("--attempts", type=int, default=3,
                    help="RANSAC restart budget per mask")
     p.add_argument("--conf", type=float, default=0.4,
@@ -91,6 +94,10 @@ def main():
         weights = args.weights or os.path.join(args.runs, fold,
                                                "weights", "best.pt")
         model = YOLO(weights)
+        model2 = None
+        if args.extra_runs:
+            model2 = YOLO(os.path.join(args.extra_runs, fold,
+                                       "weights", "best.pt"))
         for sid in scene_ids:
             scene = load_scene(args.root, "train", sid)
             estimator = PoseEstimator(model_cloud, scene.depth, scene.K,
@@ -98,6 +105,8 @@ def main():
             masks = masks_from_model(model, scene.rgb, conf=args.conf)
             if extra is not None:
                 masks += masks_from_model(extra, scene.rgb, conf=args.conf)
+            if model2 is not None:
+                masks += masks_from_model(model2, scene.rgb, conf=args.conf)
             found = detect_from_masks(scene, estimator, masks,
                                       attempts=args.attempts)
             rows = [{"R": e.R.tolist(), "t": e.t.tolist(),
