@@ -19,3 +19,4 @@ pred_test/
 seg_data/
 seg_runs/
 yolo11m-seg.pt
+/*.pt
