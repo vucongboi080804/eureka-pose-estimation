@@ -38,7 +38,10 @@ MATCH_RADIUS_PX = 12.0
 MATCH_AREA_RATIO = 3.0
 
 #: In-plane rotation needs a stable baseline; with fewer pairs than this
-#: only the shift is solved.
+#: only the shift is solved. Two pairs were tried and measured WORSE
+#: (train AR 0.838 -> 0.824): partially occluded holes shift their
+#: observed centroids by more than the theoretical sub-pixel noise, and a
+#: 2-point baseline amplifies that straight into roll.
 MIN_PAIRS_FOR_ROLL = 3
 
 #: Matched pairs whose residual after the first solve exceeds this are
