@@ -1,0 +1,21 @@
+# Inference runtime for a Jetson Nano 4 GB (JetPack 4.6 / Ubuntu 18.04,
+# glibc 2.27, aarch64) running CPython 3.8 (deadsnakes; the stock 3.6 is
+# too old for ultralytics). Every pin below has a cp38 aarch64 wheel on
+# PyPI that installs on glibc 2.27 (checked with pip 2026-08-17; open3d
+# 0.19 has no aarch64 wheel at all, hence 0.18.0).
+#
+# torch here is the CPU-only aarch64 wheel from PyPI: it runs the two
+# segmenters on the Nano's 4 A57 cores (slow but exact). For the Nano's GPU
+# replace the torch/torchvision lines with the JetPack 4.6 CUDA-10.2 wheels
+# for Python 3.8 (community builds, e.g. Qengineering's PyTorch-Jetson-Nano)
+# and keep everything else -- nothing in this repo depends on the torch
+# build beyond ultralytics' inference call.
+torch==2.4.1
+torchvision==0.19.1
+open3d==0.18.0
+ultralytics==8.4.120
+numpy==1.24.4
+opencv-python==4.10.0.84
+scipy==1.10.1
+matplotlib==3.7.5
+trimesh==4.12.2

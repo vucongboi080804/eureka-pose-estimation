@@ -1,0 +1,19 @@
+# Keep the Docker build context to what deploy/Dockerfile copies.
+.venv/
+.git/
+train/
+test/
+model/
+seg_data/
+seg_runs/
+seg_runs_l/
+pred_test/
+overlays_test/
+out_*/
+plans/
+results/
+analysis/
+analysis/
+__pycache__/
+*.json
+/*.pt
