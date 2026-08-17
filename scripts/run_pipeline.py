@@ -25,7 +25,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.detect import detect_scene, part_pixel_mask
-from src.detect_seg import PICK_SCORE, detect_scene_hybrid
+from src.detect_seg import PICK_SCORE, SEG_IMGSZ, detect_scene_hybrid
 from src.model_cloud import load_model_cloud
 from src.register import PoseEstimator
 from src.scene_io import list_scenes, load_scene
@@ -50,7 +50,7 @@ def _init_worker(ply_path, seg_weights=None, extra_weights=None):
 
 
 def _run_scene(args):
-    root, split, scene_id, labels_out, passes, pick, hole_cue = args
+    root, split, scene_id, labels_out, passes, pick, hole_cue, imgsz = args
     t0 = time.time()
     try:
         scene = load_scene(root, split, scene_id)
@@ -59,7 +59,8 @@ def _run_scene(args):
                                   hole_cue=hole_cue)
         if _SEG is not None:
             found = detect_scene_hybrid(scene, estimator, _SEG,
-                                        extra_model=_SEG_EXTRA, pick=pick)
+                                        extra_model=_SEG_EXTRA, pick=pick,
+                                        imgsz=imgsz)
         else:
             found = detect_scene(scene, estimator, passes=passes)
         preds = [{"R": e.R.tolist(), "t": e.t.tolist(),
@@ -122,6 +123,11 @@ def main():
                         "solid part colour at or in front of its own rim "
                         "is material the pose claims is empty, which is "
                         "how a half-turn hides from the depth verifier")
+    p.add_argument("--imgsz", type=int, default=SEG_IMGSZ,
+                   help="Segmenter input side. The weights were fine-tuned "
+                        "at %d, which is what the submission uses; a smaller "
+                        "board trades it down (analysis/nano_profile.md)"
+                        % SEG_IMGSZ)
     p.add_argument("--pick", action="store_true",
                    help="Stop each scene at the first pose with score >= "
                         "%.1f -- deployment latency mode (learned-mask "
@@ -134,7 +140,7 @@ def main():
     if args.scenes:
         scene_ids = [s for s in scene_ids if s in set(args.scenes)]
     jobs = [(args.root, args.split, s, args.labels_out, args.passes,
-             args.pick, args.hole_cue) for s in scene_ids]
+             args.pick, args.hole_cue, args.imgsz) for s in scene_ids]
 
     submission = {}
     if args.workers <= 1:

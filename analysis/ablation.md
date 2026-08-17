@@ -9,7 +9,7 @@ whose top-scored pose lands within 5 mm. Every row is a file in `results/`.
 
 | Configuration | `results/` file | 2 mm | 4 mm | 6 mm | 8 mm | 10 mm | prec@10 | AR | top-1 | n preds |
 |---|---|---|---|---|---|---|---|---|---|---|
-| **Full pipeline** (`--ablate none`, submitted) | `train_ensemble_run1.json` | 0.521 | 0.889 | 0.940 | 0.949 | 0.957 | 0.767 | **0.851** | 1.000 | 183 |
+| **Full pipeline** (`--ablate none`, submitted) | `train_ensemble_run1.json` | 0.521 | 0.889 | 0.940 | 0.949 | 0.957 | 0.767 | **0.851** | 1.000 | 185 |
 | no RGB hole cue | `ablation_no_hole_cue.json` | 0.521 | 0.897 | 0.932 | 0.932 | 0.940 | 0.748 | 0.844 | 1.000 | 185 |
 | no own-mask check † | `ablation_no_own_mask.json` | 0.504 | 0.889 | 0.932 | 0.932 | 0.940 | 0.719 | 0.839 | 1.000 | 191 |
 | no flip rivals | `ablation_no_flips_v2.json` | 0.530 | 0.889 | 0.940 | 0.949 | 0.957 | 0.747 | 0.853 | 1.000 | 186 |
@@ -17,8 +17,8 @@ whose top-scored pose lands within 5 mm. Every row is a file in `results/`.
 | no polish | `ablation_no_polish_v2.json` | 0.496 | 0.897 | 0.940 | 0.940 | 0.957 | 0.783 | 0.846 | 1.000 | 181 |
 | no part-colour gate | `ablation_no_gate_v2.json` | 0.521 | 0.897 | 0.940 | 0.949 | 0.957 | 0.599 | 0.853 | 1.000 | 224 |
 | single segmenter (YOLO11l, conf 0.4) | `train_yolo11l_single.json` | 0.496 | 0.855 | 0.906 | 0.906 | 0.915 | 0.863 | 0.815 | 1.000 | 152 |
-| GT masks, one proposal per instance | `train_gt_masks.json` | 0.453 | 0.872 | 0.957 | 0.966 | 0.991 | 0.983 | 0.848 | 1.000 | 133 |
-| second draw of the submitted configuration | `train_ensemble_run2.json` | 0.521 | 0.889 | 0.940 | 0.949 | 0.957 | 0.778 | 0.851 | 1.000 | 183 |
+| GT masks, one proposal per instance | `train_gt_masks.json` | 0.453 | 0.872 | 0.957 | 0.966 | 0.991 | 0.983 | 0.848 | 1.000 | 135 |
+| second draw of the submitted configuration | `train_ensemble_run2.json` | 0.521 | 0.889 | 0.940 | 0.949 | 0.957 | 0.778 | 0.851 | 1.000 | 180 |
 | no hole cue, two more draws | `ablation_no_hole_cue_run2.json`, `ablation_no_own_mask_run2/3.json` | 0.521 | 0.880 | 0.923 | 0.923 | 0.932 | 0.732 | 0.836–0.839 | 1.000 | 185 |
 
 The pool holds 117 required instances (visible fraction ≥ 0.80), so one
@@ -108,7 +108,7 @@ synthetic-only segmenter is trained with randomised part colours and fires
 on plain light background; a flat CAD plate sunk flush into the tray floor
 passes free-space verification, and it also explains its (background)
 mask's points, so the own-mask check does not catch it. Without the gate the
-pipeline emits 224 predictions instead of 183 and precision at 10 mm falls
+pipeline emits 224 predictions instead of 185 and precision at 10 mm falls
 0.767 → 0.599; recall and top-1 are unchanged. Same conclusion as the report
 (0.56 → 0.73 before the own-mask check existed): the gate is pure precision.
 
