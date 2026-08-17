@@ -154,9 +154,17 @@ def _emulation_evidence() -> list:
     return evidence
 
 
+#: Where the board identity is read from inside a container. /proc/device-tree
+#: is not visible in one, so the runbook bind-mounts the model file to this
+#: path; without it a run on real hardware records itself as "not a Jetson",
+#: which is the one thing a board record exists to prove.
+CONTAINER_DEVICE_MODEL = "/etc/device-tree-model"
+
+
 def describe_host() -> dict:
     """Everything needed to decide whether two bench files are comparable."""
-    device_model = _read_text("/proc/device-tree/model")
+    device_model = _read_text("/proc/device-tree/model") \
+        or _read_text(CONTAINER_DEVICE_MODEL)
     tegra_release = _read_text("/etc/nv_tegra_release")
     is_jetson = bool(device_model and "jetson" in device_model.lower()) \
         or tegra_release is not None
