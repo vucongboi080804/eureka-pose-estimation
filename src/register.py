@@ -29,7 +29,7 @@ from scipy.spatial import cKDTree
 
 from .edge_refine import PosePolisher
 from .model_cloud import ModelCloud
-from .verify import Verdict, depth_slope, verify_pose
+from .verify import Verdict, depth_slope, hole_conflict, verify_pose
 
 #: ICP correspondence distances on the coarse scene cloud, metres.
 ICP_SCHEDULE = (0.006, 0.0025)
@@ -52,6 +52,19 @@ MAX_ATTEMPTS = 5
 #: Candidates whose confidence is within this of the best are treated as
 #: equally plausible; the tighter ICP fitness picks among them.
 CONFIDENCE_TIE = 0.1
+
+#: Weight of the RGB hole-consistency objection when ranking candidates.
+#: A half-turn that puts a predicted hole over solid part-coloured surface
+#: loses this much confidence per unit of contradicted hole. Measured on
+#: the train split (every required instance, its pose refined against three
+#: pi-rotated rivals): the correct pose wins all 117 for any weight in
+#: 0.2-0.8, while 0.0 loses one and 1.0 loses another, so the default sits
+#: in the middle of that plateau.
+HOLE_CUE_WEIGHT = 0.5
+
+#: Candidates this far below the best depth confidence cannot be rescued by
+#: the colour cue, so they are never rendered for it.
+HOLE_CUE_REACH = 0.6
 
 #: When feature matching leaves nothing verifying at least this well, fall
 #: back to brute force over a rotation grid.
@@ -171,7 +184,8 @@ class PoseEstimator:
 
     def __init__(self, model: ModelCloud, depth: np.ndarray, K: np.ndarray,
                  part_mask: np.ndarray | None = None, flips: bool = True,
-                 grid: bool = True, polish: bool = True):
+                 grid: bool = True, polish: bool = True,
+                 hole_cue: bool = True):
         """Args:
             model: Prepared CAD clouds and features.
             depth: (H, W) scene depth, metres.
@@ -183,6 +197,10 @@ class PoseEstimator:
             flips, grid, polish: Ablation switches for the flip rivals, the
                 rotation-grid fallback and the polish stage. All on in
                 production; each off measures what that stage buys.
+            hole_cue: Let the RGB hole-consistency objection re-rank
+                candidates (needs ``part_mask``). Depth cannot see into a
+                predicted through-hole, which is where a half-turn hides;
+                switching this off measures what the colour cue buys.
         """
         self.model = model
         self.depth = depth
@@ -190,6 +208,8 @@ class PoseEstimator:
         self.use_flips = flips
         self.use_grid = grid
         self.use_polish = polish
+        self.use_hole_cue = hole_cue and part_mask is not None
+        self._part_mask = part_mask
         self._flips = flip_transforms(model)
         self._grid = grid_rotations()
         # Denser grid for the anchored search: the normal gate below prunes
@@ -393,12 +413,34 @@ class PoseEstimator:
                             out.append(T)
         return out
 
+    def _ranking_confidence(self, judged) -> list:
+        """Depth confidence per candidate, minus the RGB hole objection.
+
+        Depth cannot see into a predicted through-hole, so a half-turn that
+        buries a hole under the boss keeps a clean verdict. The colour cue
+        settles those, and only those: it is rendered for the candidates
+        still in reach of the lead, and it can only ever lower a score.
+        """
+        scores = [v.confidence for _, v, _ in judged]
+        if not self.use_hole_cue:
+            return scores
+        top = max(scores)
+        for i, (_, _, T_ms) in enumerate(judged):
+            if scores[i] < top - HOLE_CUE_REACH:
+                continue
+            T_co = np.linalg.inv(T_ms)
+            scores[i] -= HOLE_CUE_WEIGHT * hole_conflict(
+                T_co[:3, :3], T_co[:3, 3], self._model_np,
+                self.depth, self.K, self._part_mask)
+        return scores
+
     def _select_and_package(self, judged, scene, fine_scene) -> PoseEstimate:
         # The verdict's 3 mm margin makes confidence decisive against flips
         # but noisy between near-identical poses, so confidence shortlists
         # and fitness -- the tighter measure -- picks the winner.
-        top = max(v.confidence for _, v, _ in judged)
-        viable = [j for j in judged if j[1].confidence >= top - CONFIDENCE_TIE]
+        ranked = self._ranking_confidence(judged)
+        top = max(ranked)
+        viable = [j for j, c in zip(judged, ranked) if c >= top - CONFIDENCE_TIE]
         fit, verdict, T_ms = max(viable, key=lambda j: j[0].fitness)
         T_ms = self._polish(np.asarray(fine_scene.points), T_ms)
         fit, verdict = self._judge(scene, T_ms)

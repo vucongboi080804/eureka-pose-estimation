@@ -131,3 +131,95 @@ def verify_pose(R: np.ndarray, t: np.ndarray,
     support = float((np.abs(diff) <= tolerance).sum() / n)
     violation = float((diff < -tolerance).sum() / n)
     return Verdict(support, violation, 1.0 - support - violation, n)
+
+
+#: A predicted see-through hole smaller than this is rasterisation noise.
+MIN_HOLE_PX = 60
+
+#: The hole's core is what gets inspected: eroding by this fraction of the
+#: hole's radius keeps a few pixels of pose error from reaching it, so the
+#: rim of a slightly misaligned but correct pose cannot raise a conflict.
+HOLE_CORE_SHRINK = 0.45
+
+#: How far in front of the rim plane still counts as "at" it, metres.
+#: Surface deeper than this is what a real through-hole shows and is not
+#: evidence against the pose.
+HOLE_FRONT_MARGIN = 0.001
+
+
+def hole_conflict(R: np.ndarray, t: np.ndarray, model_points: np.ndarray,
+                  depth: np.ndarray, K: np.ndarray,
+                  part_mask: np.ndarray) -> float:
+    """Colour evidence against a pose's predicted through-holes.
+
+    The depth verdict never judges a hole: no model surface projects there,
+    so nothing is compared. That blind spot is exactly where a half-turn
+    hides -- the flip puts a hole over the boss, and free-space
+    verification has no opinion. The colour image does.
+
+    Under a correct pose a predicted hole shows whatever lies *behind* the
+    part: the tray, or a neighbour further away. Solid part-coloured
+    surface at or in front of the hole's own rim plane is material the pose
+    claims is empty, which only a wrong pose predicts. The sign matters --
+    in a dense bin a real hole often frames a part lying a few millimetres
+    below, and judging by distance alone would punish the correct pose for
+    it.
+
+    Args:
+        R, t: Pose, object -> camera.
+        model_points: (N, 3) dense sample of the CAD surface, object frame.
+        depth: (H, W) observed depth, metres, 0 = no measurement.
+        K: (3, 3) intrinsics.
+        part_mask: Class-level part-colour mask of the scene.
+
+    Returns:
+        The worst hole's contradicted fraction, 0 (no objection) to 1.
+    """
+    H, W = depth.shape
+    pc = model_points @ R.T + t
+    pc = pc[pc[:, 2] > 1e-6]
+    if not len(pc):
+        return 0.0
+    u = np.rint(K[0, 0] * pc[:, 0] / pc[:, 2] + K[0, 2]).astype(np.int64)
+    v = np.rint(K[1, 1] * pc[:, 1] / pc[:, 2] + K[1, 2]).astype(np.int64)
+    inside = (u >= 0) & (u < W) & (v >= 0) & (v < H)
+    if not inside.any():
+        return 0.0
+    u, v, z = u[inside], v[inside], pc[inside, 2]
+
+    zbuf = np.full((H, W), np.inf)
+    np.minimum.at(zbuf, (v, u), z)
+    sil = (zbuf < np.inf).astype(np.uint8)
+    sil = cv2.morphologyEx(sil, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
+
+    contours, hierarchy = cv2.findContours(sil, cv2.RETR_CCOMP,
+                                           cv2.CHAIN_APPROX_NONE)
+    if hierarchy is None:
+        return 0.0
+    kernel = np.ones((3, 3), np.uint8)
+    worst = 0.0
+    for contour, info in zip(contours, hierarchy[0]):
+        if info[3] == -1:                    # top level: an outer boundary
+            continue
+        area = cv2.contourArea(contour)
+        if area < MIN_HOLE_PX:
+            continue
+        hole = np.zeros((H, W), np.uint8)
+        cv2.drawContours(hole, [contour], -1, 1, thickness=cv2.FILLED)
+        hole &= 1 - sil                      # see-through pixels only
+        shrink = max(int(round(HOLE_CORE_SHRINK * np.sqrt(area / np.pi))), 1)
+        core = cv2.erode(hole, kernel, iterations=shrink) > 0
+        # The rim plane: the posed model's own depth around the hole.
+        ring = (cv2.dilate(hole, kernel, iterations=3) > 0) & (sil > 0)
+        rim = zbuf[ring]
+        rim = rim[np.isfinite(rim)]
+        if not len(rim):
+            continue
+        observed = depth[core]
+        measured = observed > 0
+        if measured.sum() < 4:
+            continue
+        solid = (part_mask[core] & measured
+                 & (observed <= np.median(rim) + HOLE_FRONT_MARGIN))
+        worst = max(worst, float(solid.sum() / measured.sum()))
+    return worst

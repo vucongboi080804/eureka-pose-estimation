@@ -8,8 +8,8 @@ folds together covers the whole train split with held-out predictions.
     .venv/bin/python score.py --release . --split train --submission seg_train.json
 
 ``--ablate`` switches one stage off at a time (flip rivals, rotation-grid
-fallback, polish, part-colour gate, own-mask check) so its contribution can
-be measured against the full configuration.
+fallback, polish, part-colour gate, own-mask check, RGB hole cue) so its
+contribution can be measured against the full configuration.
 """
 
 import argparse
@@ -47,7 +47,7 @@ def merge_nms(rows: list) -> list:
 
 #: Stages ``--ablate`` can switch off; ``none`` is the full configuration.
 ABLATIONS = ("none", "no_flips", "no_grid", "no_polish", "no_gate",
-             "no_own_mask")
+             "no_own_mask", "no_hole_cue")
 
 FOLD_VAL_SCENES = {
     "fold0": ["000007", "000014", "000021", "000033", "000047"],
@@ -120,7 +120,8 @@ def main():
                                       part_mask=part_pixel_mask(scene.rgb),
                                       flips="no_flips" not in ablate,
                                       grid="no_grid" not in ablate,
-                                      polish="no_polish" not in ablate)
+                                      polish="no_polish" not in ablate,
+                                      hole_cue="no_hole_cue" not in ablate)
             masks = masks_from_model(model, scene.rgb, conf=args.conf)
             if extra is not None:
                 masks += masks_from_model(extra, scene.rgb, conf=args.conf)
