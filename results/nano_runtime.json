@@ -1,0 +1,366 @@
+{
+ "what": "Per-scene wall time and peak RSS of five segmenter configurations, measured the way a 4-core CPU-only board would run them.",
+ "host": {
+  "cpu": "Intel i5-14600K, pinned to 4 P-cores (taskset -c 0,2,4,6)",
+  "threads": "OMP_NUM_THREADS=4, CUDA_VISIBLE_DEVICES=\"\" (CPU only)",
+  "os": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39",
+  "python": "3.12.3",
+  "torch": "2.13.0+cu130",
+  "open3d": "0.19.0",
+  "ultralytics": "8.4.120",
+  "opencv": "5.0.0",
+  "numpy": "2.5.2",
+  "commit": "332c758",
+  "measured_at": "2026-08-17 18:14-18:33 local",
+  "load1_range_during_run": [
+   4.2,
+   6.59
+  ],
+  "note": "A desktop P-core, not a Cortex-A57: read these as a lower bound on board time, not a board measurement."
+ },
+ "split": "test",
+ "workers": 1,
+ "conf": 0.25,
+ "rows": [
+  {
+   "name": "single_960_pick",
+   "imgsz": 960,
+   "segmenters": 1,
+   "mode": "pick",
+   "scenes": [
+    "000001",
+    "000003",
+    "000015",
+    "000043",
+    "000052"
+   ],
+   "load_s": 3.9,
+   "rss_after_load_gb": 0.969,
+   "peak_rss_gb": 1.48,
+   "poses": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "per_scene_s": [
+    1.98,
+    1.93,
+    1.84,
+    1.2,
+    1.61
+   ],
+   "mean_s": 1.71,
+   "median_s": 1.84,
+   "max_s": 1.98,
+   "load1_at_start": 4.2
+  },
+  {
+   "name": "single_768_pick",
+   "imgsz": 768,
+   "segmenters": 1,
+   "mode": "pick",
+   "scenes": [
+    "000001",
+    "000003",
+    "000015",
+    "000043",
+    "000052"
+   ],
+   "load_s": 3.12,
+   "rss_after_load_gb": 0.968,
+   "peak_rss_gb": 1.366,
+   "poses": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "per_scene_s": [
+    1.4,
+    0.76,
+    0.77,
+    0.82,
+    0.7
+   ],
+   "mean_s": 0.89,
+   "median_s": 0.77,
+   "max_s": 1.4,
+   "load1_at_start": 4.88
+  },
+  {
+   "name": "single_640_pick",
+   "imgsz": 640,
+   "segmenters": 1,
+   "mode": "pick",
+   "scenes": [
+    "000001",
+    "000003",
+    "000015",
+    "000043",
+    "000052"
+   ],
+   "load_s": 3.04,
+   "rss_after_load_gb": 0.969,
+   "peak_rss_gb": 1.302,
+   "poses": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "per_scene_s": [
+    1.45,
+    0.82,
+    1.56,
+    1.12,
+    0.73
+   ],
+   "mean_s": 1.13,
+   "median_s": 1.12,
+   "max_s": 1.56,
+   "load1_at_start": 4.36
+  },
+  {
+   "name": "dual_640_pick",
+   "imgsz": 640,
+   "segmenters": 2,
+   "mode": "pick",
+   "scenes": [
+    "000001",
+    "000003",
+    "000015",
+    "000043",
+    "000052"
+   ],
+   "load_s": 3.52,
+   "rss_after_load_gb": 1.05,
+   "peak_rss_gb": 1.473,
+   "poses": [
+    2,
+    2,
+    2,
+    1,
+    1
+   ],
+   "per_scene_s": [
+    2.23,
+    2.08,
+    3.01,
+    1.51,
+    1.14
+   ],
+   "mean_s": 1.99,
+   "median_s": 2.08,
+   "max_s": 3.01,
+   "load1_at_start": 4.24
+  },
+  {
+   "name": "dual_960_pick",
+   "imgsz": 960,
+   "segmenters": 2,
+   "mode": "pick",
+   "scenes": [
+    "000001",
+    "000003",
+    "000015",
+    "000043",
+    "000052"
+   ],
+   "load_s": 3.15,
+   "rss_after_load_gb": 1.05,
+   "peak_rss_gb": 1.574,
+   "poses": [
+    1,
+    1,
+    2,
+    2,
+    1
+   ],
+   "per_scene_s": [
+    2.39,
+    1.81,
+    2.31,
+    2.5,
+    1.35
+   ],
+   "mean_s": 2.07,
+   "median_s": 2.31,
+   "max_s": 2.5,
+   "load1_at_start": 5.63
+  },
+  {
+   "name": "single_960_full",
+   "imgsz": 960,
+   "segmenters": 1,
+   "mode": "full",
+   "scenes": [
+    "000001",
+    "000003",
+    "000015",
+    "000043",
+    "000052"
+   ],
+   "load_s": 2.83,
+   "rss_after_load_gb": 0.968,
+   "peak_rss_gb": 1.44,
+   "poses": [
+    9,
+    13,
+    7,
+    14,
+    5
+   ],
+   "per_scene_s": [
+    3.87,
+    5.35,
+    5.66,
+    9.1,
+    3.18
+   ],
+   "mean_s": 5.43,
+   "median_s": 5.35,
+   "max_s": 9.1,
+   "load1_at_start": 5.18
+  },
+  {
+   "name": "single_768_full",
+   "imgsz": 768,
+   "segmenters": 1,
+   "mode": "full",
+   "scenes": [
+    "000001",
+    "000003",
+    "000015",
+    "000043",
+    "000052"
+   ],
+   "load_s": 3.35,
+   "rss_after_load_gb": 0.969,
+   "peak_rss_gb": 1.379,
+   "poses": [
+    9,
+    13,
+    8,
+    16,
+    6
+   ],
+   "per_scene_s": [
+    4.42,
+    6.22,
+    7.28,
+    9.74,
+    3.63
+   ],
+   "mean_s": 6.26,
+   "median_s": 6.22,
+   "max_s": 9.74,
+   "load1_at_start": 5.4
+  },
+  {
+   "name": "single_640_full",
+   "imgsz": 640,
+   "segmenters": 1,
+   "mode": "full",
+   "scenes": [
+    "000001",
+    "000003",
+    "000015",
+    "000043",
+    "000052"
+   ],
+   "load_s": 2.96,
+   "rss_after_load_gb": 0.969,
+   "peak_rss_gb": 1.307,
+   "poses": [
+    9,
+    12,
+    8,
+    14,
+    6
+   ],
+   "per_scene_s": [
+    3.87,
+    5.42,
+    7.1,
+    8.48,
+    3.29
+   ],
+   "mean_s": 5.63,
+   "median_s": 5.42,
+   "max_s": 8.48,
+   "load1_at_start": 6.59
+  },
+  {
+   "name": "dual_640_full",
+   "imgsz": 640,
+   "segmenters": 2,
+   "mode": "full",
+   "scenes": [
+    "000001",
+    "000003",
+    "000015",
+    "000043",
+    "000052"
+   ],
+   "load_s": 3.02,
+   "rss_after_load_gb": 1.05,
+   "peak_rss_gb": 1.504,
+   "poses": [
+    9,
+    13,
+    11,
+    17,
+    6
+   ],
+   "per_scene_s": [
+    7.34,
+    10.82,
+    22.37,
+    19.25,
+    7.31
+   ],
+   "mean_s": 13.42,
+   "median_s": 10.82,
+   "max_s": 22.37,
+   "load1_at_start": 4.98
+  },
+  {
+   "name": "dual_960_full",
+   "imgsz": 960,
+   "segmenters": 2,
+   "mode": "full",
+   "scenes": [
+    "000001",
+    "000003",
+    "000015",
+    "000043",
+    "000052"
+   ],
+   "load_s": 2.9,
+   "rss_after_load_gb": 1.05,
+   "peak_rss_gb": 1.583,
+   "poses": [
+    9,
+    15,
+    10,
+    17,
+    6
+   ],
+   "per_scene_s": [
+    6.97,
+    13.93,
+    18.23,
+    25.05,
+    9.84
+   ],
+   "mean_s": 14.8,
+   "median_s": 13.93,
+   "max_s": 25.05,
+   "load1_at_start": 5.02
+  }
+ ]
+}

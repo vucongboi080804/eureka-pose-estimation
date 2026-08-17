@@ -15,6 +15,11 @@ from .detect import (EXPLAINED_DIST, MIN_CONFIDENCE, MIN_OWN_CONSUMED,
 from .register import PoseEstimator
 from .scene_io import Scene, backproject
 
+#: Network input side for the segmenters. 960 is what the weights were
+#: fine-tuned at and what the submission uses; smaller boards may trade it
+#: down (analysis/nano_profile.md measures the cost).
+SEG_IMGSZ = 960
+
 #: Boundary peel for predicted masks, pixels (mask edges carry blended depth).
 ERODE_PX = 2
 
@@ -112,7 +117,8 @@ def detect_from_masks(scene: Scene, estimator: PoseEstimator,
 
 def detect_scene_hybrid(scene: Scene, estimator: PoseEstimator,
                         seg_model, extra_model=None,
-                        conf: float = 0.25, pick: bool = False) -> list:
+                        conf: float = 0.25, pick: bool = False,
+                        imgsz: int = SEG_IMGSZ) -> list:
     """Learned masks first; geometric detector as a domain-shift safety net.
 
     ``extra_model`` widens the proposal pool (e.g. the synthetic-only
@@ -130,9 +136,10 @@ def detect_scene_hybrid(scene: Scene, estimator: PoseEstimator,
     confident pick per robot cycle); the safety net only runs when no
     pick was found.
     """
-    masks = masks_from_model(seg_model, scene.rgb, conf=conf)
+    masks = masks_from_model(seg_model, scene.rgb, conf=conf, imgsz=imgsz)
     if extra_model is not None:
-        masks += masks_from_model(extra_model, scene.rgb, conf=conf)
+        masks += masks_from_model(extra_model, scene.rgb, conf=conf,
+                                  imgsz=imgsz)
     found = detect_from_masks(scene, estimator, masks,
                               stop_at=PICK_SCORE if pick else None)
     if pick and any(e.submission_score >= PICK_SCORE for e in found):
@@ -143,10 +150,17 @@ def detect_scene_hybrid(scene: Scene, estimator: PoseEstimator,
     return nms(found + detect_scene(scene, estimator))
 
 
-def masks_from_model(model, bgr: np.ndarray, conf: float = 0.4) -> list:
-    """Run an ultralytics segmentation model; returns [(bool_mask, conf)]."""
+def masks_from_model(model, bgr: np.ndarray, conf: float = 0.4,
+                     imgsz: int = SEG_IMGSZ) -> list:
+    """Run an ultralytics segmentation model; returns [(bool_mask, conf)].
+
+    ``imgsz`` is the letterboxed side the network actually sees; masks are
+    resized back to the full frame either way, so lowering it costs
+    segmentation detail and nothing else. Activation memory scales with its
+    square, which makes it the cheapest knob on a memory-bound board.
+    """
     H, W = bgr.shape[:2]
-    result = model(bgr, imgsz=960, conf=conf, verbose=False,
+    result = model(bgr, imgsz=imgsz, conf=conf, verbose=False,
                    retina_masks=True)[0]
     out = []
     if result.masks is None:

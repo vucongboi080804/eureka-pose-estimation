@@ -22,7 +22,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.detect import NMS_ANGLE_DEG, NMS_DIST, part_pixel_mask
-from src.detect_seg import detect_from_masks, masks_from_model
+from src.detect_seg import SEG_IMGSZ, detect_from_masks, masks_from_model
 from src.model_cloud import load_model_cloud
 from src.register import PoseEstimator
 from src.scene_io import load_scene
@@ -79,6 +79,9 @@ def main():
                    help="RANSAC restart budget per mask")
     p.add_argument("--conf", type=float, default=0.4,
                    help="Segmentation confidence floor for proposals")
+    p.add_argument("--imgsz", type=int, default=SEG_IMGSZ,
+                   help="Segmenter input side; lower it to price a "
+                        "memory-constrained board (analysis/nano_profile.md)")
     p.add_argument("--ablate", action="append", default=[],
                    metavar="|".join(ABLATIONS),
                    help="Switch stages off (repeatable, or comma-separated)")
@@ -122,11 +125,14 @@ def main():
                                       grid="no_grid" not in ablate,
                                       polish="no_polish" not in ablate,
                                       hole_cue="no_hole_cue" not in ablate)
-            masks = masks_from_model(model, scene.rgb, conf=args.conf)
+            masks = masks_from_model(model, scene.rgb, conf=args.conf,
+                                     imgsz=args.imgsz)
             if extra is not None:
-                masks += masks_from_model(extra, scene.rgb, conf=args.conf)
+                masks += masks_from_model(extra, scene.rgb, conf=args.conf,
+                                          imgsz=args.imgsz)
             if model2 is not None:
-                masks += masks_from_model(model2, scene.rgb, conf=args.conf)
+                masks += masks_from_model(model2, scene.rgb, conf=args.conf,
+                                          imgsz=args.imgsz)
             found = detect_from_masks(
                 scene, estimator, masks, attempts=args.attempts,
                 colour_gate="no_gate" not in ablate,
