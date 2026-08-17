@@ -1,3 +1,12 @@
+> **Candidate submission (Boi Vu Cong)** — the solution lives next to
+> this assignment text. Start with [`report.md`](report.md) (approach,
+> results, limitations, tools disclosure). Deliverables: `submission.json`
+> (40 test scenes) and `overlays_test/` (predicted poses drawn on every test
+> image); shipped weights in `weights/`. One command reproduces both on any
+> release folder: `./run_all.sh <release_path> [split]` (see report.md →
+> Reproducing). Everything below this line is the original assignment
+> statement, unchanged.
+
 # 6-DoF pose estimation assignment
 
 ## Background
