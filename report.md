@@ -10,10 +10,11 @@ CV on train: **AR 0.836 (0.83–0.84 across runs), top-1 1.000**, precision
 ≈ 130 s on one desktop GPU (CPU-only works too). One command reproduces the
 submission on any release folder: `./run_all.sh <release>`.
 
-`submission.json` and `overlays_test/` were produced by
+`submission.json` was produced at commit `369dc7e` by
 `scripts/run_pipeline.py --split test --seg-model weights/part-seg.pt
---extra-seg-model weights/part-seg-synthetic.pt` at commit `369dc7e`
-(396 predictions over 40 scenes).
+--extra-seg-model weights/part-seg-synthetic.pt` (396 predictions over 40
+scenes); `overlays_test/` by the released `visualize.py` on those poses —
+exactly what `run_all.sh` does.
 
 ## Method
 
@@ -54,8 +55,9 @@ pose refinement, dominates the error budget.)
      picks between rivals: a flip explains the visible surface but pokes
      through free space.
    - *Rotation-grid fallback*: when nothing verifies (≥ 0.5), a
-     Fibonacci-sphere rotation grid (60 orientations; 192 when a pile seed
-     anchors the translation) is coarse-ICP'd, ranked by the depth verdict,
+     Fibonacci-sphere rotation grid (192 orientations when the proposal
+     anchors the translation, as every mask does; 60 otherwise) is
+     coarse-ICP'd, ranked by the depth verdict,
      and the best few fully refined — this fixed 14 of the 15 hard
      instances feature matching missed.
    - *Polish* (`src/edge_refine.py`): 1 mm depth quantisation erases ~2 mm
@@ -81,7 +83,7 @@ pose refinement, dominates the error budget.)
 
 | Setting                                        | 2 mm  | 4 mm  | 6 mm  | 8 mm  | 10 mm | AR    | top-1 |
 | ---------------------------------------------- | ----- | ----- | ----- | ----- | ----- | ----- | ----- |
-| GT masks → registration (one attempt/instance) | 0.436 | 0.872 | 0.940 | 0.940 | 0.974 | 0.832 | 1.000 |
+| GT masks → registration (one proposal/instance) | 0.436 | 0.872 | 0.940 | 0.940 | 0.974 | 0.832 | 1.000 |
 | Geometric detector, no training                | 0.368 | 0.786 | 0.812 | 0.821 | 0.829 | 0.723 | 0.950 |
 | Single segmenter (YOLO11l, conf 0.4)           | 0.496 | 0.855 | 0.906 | 0.906 | 0.915 | 0.815 | 1.000 |
 | **Two-segmenter ensemble (submitted)**         | 0.521 | 0.880 | 0.923 | 0.923 | 0.932 | **0.836** | **1.000** |
@@ -100,10 +102,11 @@ AR 0.836 (`train_ensemble_run2.json` is the second draw); four earlier
 draws spanned 0.829–0.844. Top-1 is 1.000 in every draw. Read the headline
 as AR 0.83–0.84.
 
-*Why the ensemble beats the GT-mask row.* Two segmenters × ~1.5 proposals
-per instance means several independent RANSAC/ICP attempts per instance
-where the GT-mask run gets one; predicted masks also avoid the GT masks'
-occlusion-boundary pixels, and the two models miss different instances.
+*Why the ensemble beats the GT-mask row.* Two segmenters × ~2 proposals
+per instance means several independent RANSAC/ICP registrations per
+instance where the GT-mask run gets one proposal; predicted masks also
+avoid the GT masks' occlusion-boundary pixels, and the two models miss
+different instances.
 The price is precision (0.73 at 10 mm): unmatched low-score proposals cost
 precision but never AR or top-1. A deployment trades recall for precision
 by thresholding `score` (≥ 0.4: precision 0.84 at AR 0.83; ≥ 0.5: 0.87 at
@@ -221,7 +224,7 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt   # Python 3.1
 
 # Leave-scenes-out CV of the learned-mask rows (retrains 4 fold models; GPU).
 # Give project= an ABSOLUTE path: ultralytics puts relative ones under its
-# global runs_dir. Hyper-parameters as trained (seg_runs_l/*/args.yaml).
+# global runs_dir. Hyper-parameters exactly as the shipped weights were trained.
 .venv/bin/python scripts/make_seg_dataset.py --root . --out seg_data/fold0 --val-scenes 000007 000014 000021 000033 000047
 # ... folds 1-3 as in scripts/eval_seg_folds.py, then per fold:
 .venv/bin/yolo segment train model=yolo11l-seg.pt data=seg_data/fold0/data.yaml \
@@ -231,12 +234,12 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt   # Python 3.1
 .venv/bin/python scripts/eval_seg_folds.py --root . --runs seg_runs_l \
     --extra-weights weights/part-seg-synthetic.pt --conf 0.25 --out results/train_ensemble_run1.json
 
-# Shipped weights: same recipe on the full split -> weights/part-seg.pt;
-# synthetic model: render, then train (epochs=80 patience=25 batch=8 degrees=0):
+# Shipped weights: same recipe on the full split -> weights/part-seg.pt.
 .venv/bin/python scripts/make_seg_dataset.py --root . --out seg_data/full
-.venv/bin/blenderproc run scripts/render_synthetic.py -- --cad model/3d_model.ply --out seg_data/synthetic --frames 1200
-.venv/bin/yolo segment train model=yolo11m-seg.pt data=seg_data/synthetic/data.yaml project=$PWD/seg_runs name=synthetic \
-    imgsz=960 epochs=80 patience=25 batch=8 amp=False optimizer=AdamW lr0=0.0002 cos_lr=True flipud=0.5 fliplr=0.5
+# Synthetic-only model: onboard_new_part.py renders (BlenderProc), carves a
+# 5% val split, writes data.yaml and trains in one go; the shipped weight
+# used epochs=80 patience=25 batch=8 (yolo11m-seg, no rotation augmentation).
+.venv/bin/python scripts/onboard_new_part.py --cad model/3d_model.ply --workdir onboard_part --frames 1200 --epochs 80
 ```
 
 `amp=False` with AdamW at `lr0=2e-4` is required — the default recipe
@@ -249,6 +252,7 @@ Developed with the assistance of Claude Code (Anthropic), used as a coding
 assistant for implementation, debugging and experiment automation under my
 direction. Libraries: Open3D (registration primitives), OpenCV, NumPy,
 SciPy, trimesh, matplotlib, Ultralytics YOLO11 (instance segmentation) and
-BlenderProc (synthetic rendering). No external data: the segmenters are
-trained only on the released train split and on synthetic scenes rendered
-from the released CAD.
+BlenderProc (synthetic rendering). No external images or labels: the
+segmenters are fine-tuned from the public COCO-pretrained YOLO11 checkpoints
+on the released train split and on synthetic scenes rendered from the
+released CAD only.
