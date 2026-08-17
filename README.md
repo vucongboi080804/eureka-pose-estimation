@@ -1,10 +1,16 @@
 > **Candidate submission (Boi Vu Cong)** — the solution lives next to
 > this assignment text. Start with [`report.md`](report.md) (approach,
-> results, limitations, tools disclosure). Deliverables: `submission.json`
-> (40 test scenes) and `overlays_test/` (predicted poses drawn on every test
-> image); shipped weights in `weights/`. One command reproduces both on any
-> release folder: `./run_all.sh <release_path> [split]` (see report.md →
-> Reproducing). Everything below this line is the original assignment
+> results, analysis, limitations, tools disclosure). Deliverables:
+> `submission.json` (40 test scenes) and `overlays_test/` (predicted poses
+> drawn on every test image); shipped weights in `weights/`.
+>
+> Clone and run: `./setup.sh` (venv from the pinned lock; `--cpu` /
+> `--cuda`) then `./run_all.sh <release_path> [split]` — submission +
+> overlays, auto-scored when ground truth ships next to the images. Docker
+> and air-gapped recipes: [`deploy/OFFLINE.md`](deploy/OFFLINE.md); Jetson
+> Nano: [`deploy/jetson-nano/`](deploy/jetson-nano/README.md). Every table
+> row is a JSON in `results/` (`score.py` re-scores it), studies in
+> `analysis/`. Everything below this line is the original assignment
 > statement, unchanged.
 
 # 6-DoF pose estimation assignment

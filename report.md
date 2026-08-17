@@ -5,14 +5,17 @@ train scenes + one trained only on synthetic renders of the CAD) propose
 masks; classical RGB-D geometry (FPFH/RANSAC → ICP → flip disambiguation →
 depth-map verification → hole-centre polish) estimates and *verifies* every
 pose; `score` = segmenter confidence × verification. Honest leave-scenes-out
-CV on train: **AR 0.836 (0.83–0.84 across runs), top-1 1.000**, precision
-0.73 at 10 mm; the GT-mask baseline is 0.832. The 40 test scenes take
-≈ 130 s on one desktop GPU (CPU-only works too). One command reproduces the
-submission on any release folder: `./run_all.sh <release>`.
+CV on train: **AR 0.844 (0.84 ± 0.005 across runs), top-1 1.000**,
+precision 0.75 at 10 mm; the GT-mask baseline is 0.832, and 5 of the 8
+remaining misses are duplicate ground-truth labels (`analysis/`). The 40
+test scenes take ≈ 135 s on one desktop GPU, 160 s CPU-only; pick mode
+(one confident pose per scene) 0.7 s. Clone-and-run: `./setup.sh` then
+`./run_all.sh <release>`; a Docker image and an air-gapped recipe are in
+`deploy/`.
 
-`submission.json` was produced at commit `369dc7e` by
+`submission.json` was produced at commit `9ec4482` by
 `scripts/run_pipeline.py --split test --seg-model weights/part-seg.pt
---extra-seg-model weights/part-seg-synthetic.pt` (396 predictions over 40
+--extra-seg-model weights/part-seg-synthetic.pt` (391 predictions over 40
 scenes); `overlays_test/` by the released `visualize.py` on those poses —
 exactly what `run_all.sh` does.
 
@@ -36,7 +39,11 @@ pose refinement, dominates the error budget.)
    must be ≥ 30 % part-coloured (the HSV gate the polish already uses) —
    the synthetic model, trained with randomised part colours, otherwise
    fires on plain light background, and a flat CAD plate sunk flush into
-   the tray floor can pass the depth check.
+   the tray floor can pass the depth check. A verified pose must also
+   *explain the mask that proposed it* (≥ 150 of its points, or 30 %,
+   within 3 mm of the posed model) — the geometric detector's progress
+   invariant applied to learned masks; it removes registrations that
+   drifted off their proposal and still verified somewhere else.
 2. **Back-projection** (`src/scene_io.py`): masked depth pixels lift to a
    camera-frame cloud (depth is registered to colour; per-scene intrinsics).
 3. **Registration of one proposal** (`src/register.py`):
@@ -86,8 +93,8 @@ pose refinement, dominates the error budget.)
 | GT masks → registration (one proposal/instance) | 0.436 | 0.872 | 0.940 | 0.940 | 0.974 | 0.832 | 1.000 |
 | Geometric detector, no training                | 0.368 | 0.786 | 0.812 | 0.821 | 0.829 | 0.723 | 0.950 |
 | Single segmenter (YOLO11l, conf 0.4)           | 0.496 | 0.855 | 0.906 | 0.906 | 0.915 | 0.815 | 1.000 |
-| **Two-segmenter ensemble (submitted)**         | 0.521 | 0.880 | 0.923 | 0.923 | 0.932 | **0.836** | **1.000** |
-| ↳ precision of the submitted config            | 0.377 | 0.656 | 0.715 | 0.725 | 0.732 |       |       |
+| **Two-segmenter ensemble (submitted)**         | 0.521 | 0.897 | 0.932 | 0.932 | 0.940 | **0.844** | **1.000** |
+| ↳ precision of the submitted config            | 0.381 | 0.677 | 0.732 | 0.741 | 0.748 |       |       |
 
 Recall (last row: precision) at each MSSD threshold. Learned-mask rows are
 honest: they stitch four leave-scenes-out folds, so every scene is predicted
@@ -97,20 +104,66 @@ by a model that never saw it. Every row is a file in `results/`
 
 *Run-to-run variance.* Open3D's RANSAC is stochastic (its OpenMP threads
 share one random engine, so a seed does not make it bit-reproducible).
-Two runs of the submitted configuration with the final code both give
-AR 0.836 (`train_ensemble_run2.json` is the second draw); four earlier
-draws spanned 0.829–0.844. Top-1 is 1.000 in every draw. Read the headline
-as AR 0.83–0.84.
+A second draw of the submitted configuration gives AR 0.839
+(`train_ensemble_run2.json`); without the own-mask check three draws gave
+0.839 / 0.836 / 0.836 (`ablation_no_own_mask*.json`). Top-1 is 1.000 in
+every draw. Read the headline as AR 0.84 ± 0.005; deltas inside that band
+are noise.
 
 *Why the ensemble beats the GT-mask row.* Two segmenters × ~2 proposals
 per instance means several independent RANSAC/ICP registrations per
 instance where the GT-mask run gets one proposal; predicted masks also
 avoid the GT masks' occlusion-boundary pixels, and the two models miss
 different instances.
-The price is precision (0.73 at 10 mm): unmatched low-score proposals cost
+The price is precision (0.75 at 10 mm): unmatched low-score proposals cost
 precision but never AR or top-1. A deployment trades recall for precision
-by thresholding `score` (≥ 0.4: precision 0.84 at AR 0.83; ≥ 0.5: 0.87 at
-0.79; ≥ 0.6: 0.95 at 0.77; top-1 stays 1.000).
+by thresholding `score` (≥ 0.4: precision 0.86 at AR 0.84; ≥ 0.6: 0.95 at
+0.78; ≥ 0.7: 1.00 at 0.71; top-1 stays 1.000 up to 0.8) —
+`analysis/score_calibration.md`.
+
+## Analysis (what the remaining error is, what each stage buys)
+
+Four short studies in `analysis/`, each regenerable by a script in
+`scripts/` and each reading the `results/` files above:
+
+- **Failure analysis** (`failure_analysis.md`, `scripts/analyze_failures.py`).
+  Of the 7 required instances missed at 10 mm, **5 are duplicate labels**
+  — two `poses.json` entries 0.4–3.7 mm apart on the same part (masks
+  IoU 0.91–0.95) in 000022, 000030, 000041 — so any one-pose-per-part
+  submission caps at recall 0.957 at 10 mm, and the ensemble reaches
+  110 of the 112 attainable. (Predicting every pose twice at half score
+  would lift AR by ~0.02; deliberately not done — it games a label defect
+  and would halve precision.) The 2 real misses (3 in the previous draw)
+  are half-turn flips about the stem axis where the depth channel cannot
+  tell — the distinguishing boss occluded, or flattened by the sensor:
+  the flip verifies 0.69–0.72 vs 0.19–0.36 for the truth; both segmenters
+  proposed each of them (IoU ≥ 0.79) — zero segmenter misses, zero
+  mislocalisations. An RGB hole-consistency cue is the identified fix.
+  Hole claim confirmed: matched MSSD median 1.7 mm with both large holes
+  visible (100 % < 4 mm, n 80) vs 2.8 mm with none (82 % < 4 mm, n 22).
+  All 37 false positives are wrong registrations of real parts (11
+  flips), none on background; their median score is 0.41 vs 0.86 for
+  true positives.
+- **Score calibration** (`score_calibration.md`, `scripts/score_calibration.py`).
+  `score` ranks reliably (AUROC 0.95 for "within 5 mm"; the top pick of
+  every scene scores ≥ 0.85 and lands within 3.2 mm) but is not a
+  calibrated probability (ECE 0.14: over-confident in the middle bins,
+  under-confident above 0.7 — a monotone recalibration would fix the level
+  without changing the ranking). Recommended cell gate: score ≥ 0.7 →
+  precision 1.00 at 5 mm on the CV predictions, 0.94 at ≥ 0.6.
+- **Ablation** (`ablation.md`, `scripts/eval_seg_folds.py --ablate`). One
+  stage off per CV run: rotation-grid fallback −0.049 AR (the largest
+  single contribution); part-colour gate precision 0.57 → 0.75 at equal
+  AR; own-mask check +0.03 precision, +1 instance; polish +3 instances at
+  2 mm; flip rivals ±0 AR on this path (the grid subsumes them; kept
+  because they are cheap insurance on the geometric path).
+- **Runtime** (`runtime.md`). Registration (ICP 40 %, RANSAC 33 %, grid
+  11 %) is ~85 % of scene time, the two segmenters 2 %; GPU therefore
+  buys 19 % throughput and no latency. Full sweep 12 s/scene single-worker,
+  135 s for the split at 6 workers (160 s CPU-only); **pick mode**
+  (`--pick`: stop at the first pose scoring ≥ 0.8) 0.7 s mean / 2.1 s max
+  per scene on GPU, 1.6–2.4 s CPU-only on 4 cores, returning a committed
+  pose in 40/40 test scenes. ~1.6–1.9 GB RSS and ~0.9 GB GPU per worker.
 
 ## Design notes and dead ends that shaped the method
 
@@ -154,7 +207,7 @@ by thresholding `score` (≥ 0.4: precision 0.84 at AR 0.83; ≥ 0.5: 0.87 at
 
   | Tier | Needs | AR |
   | ---- | ----- | -- |
-  | Real-trained segmenter alone (YOLO11l) | this environment | 0.815 (0.836 in the submitted ensemble) |
+  | Real-trained segmenter alone (YOLO11l) | this environment | 0.815 (0.844 in the submitted ensemble) |
   | **Synthetic-only segmenter** (`scripts/render_synthetic.py`) | nothing real: trained purely on domain-randomised CAD renders | 0.814 (top-1 1.000) zero-shot on the real scenes |
   | Geometric detector, colour gate | the part's colour | 0.723 |
   | Geometric detector, depth foreground (`foreground="depth"`, Python API) | nothing but depth | recovers most instances, colour-blind |
@@ -171,25 +224,39 @@ by thresholding `score` (≥ 0.4: precision 0.84 at AR 0.83; ≥ 0.5: 0.87 at
   geometric fallback).
 - Registration assumes the depth map is metrically consistent with the
   colour image and intrinsics (true for this dataset).
-- **Runtime** (i5-14600K, RTX 4070 Ti SUPER, `--workers 6`): the 40 test
-  scenes take 130 s (+15 s for the overlays); per-scene latency 17 s
-  median, 47 s on the densest pile. CPU-only inference works (~10 s per
-  light scene, 2 workers). The geometric fallback is CPU-only research
-  code: 10–90 s per scene, up to ~10 min on the densest piles.
+- **Runtime** (i5-14600K, RTX 4070 Ti SUPER; `analysis/runtime.md`): 40
+  test scenes in 135 s at 6 workers (+15 s overlays), 160 s CPU-only;
+  12 s per scene single-worker, up to 48 s on the densest pile; pick mode
+  0.7 s. The geometric fallback is CPU-only research code: 10–90 s per
+  scene, up to ~10 min on the densest piles.
 
-## Toward production deployment
+## Deployment
 
 The assignment metric is stricter than the production task: a robot picks
 *one* part per cycle, then rescans, so the loop is governed by top-1
 (1.000 here) rather than full-scene AR, and every pick thins the pile.
-`score` gates that loop (low confidence → rescan / next instance). The
-measured accuracy bottleneck is the sensor, not the algorithm — an
+That loop is what `--pick` implements (first pose scoring ≥ 0.8, 0.7 s per
+scene; `score` ≥ 0.7 as the cell's gate, rescan/shake otherwise), and
+`deploy/live_adapter.py` is the seam where a camera SDK plugs in — it wraps
+one registered RGB-D frame + intrinsics into the same `Scene` the offline
+runner uses (verified identical output on a test scene).
+
+Packaging (`deploy/OFFLINE.md`): `./setup.sh` builds the venv from the
+exact pins (`deploy/requirements-lock.txt`, CPU or CUDA); `deploy/Dockerfile`
+is a CPU image (1.24 GB) that reproduced the submission poses with
+`--network none` — inference makes no network request; a wheelhouse recipe
+covers air-gapped bare metal; `deploy/jetson-nano/` holds a Python 3.8 /
+aarch64 pin set and image for a Jetson Nano 4 GB (built and smoke-tested
+under qemu emulation; timing on the board not measured).
+
+Accuracy-wise the measured bottleneck is the sensor, not the algorithm — an
 industrial structured-light camera (30–100 µm noise) would let this same
 registration stack settle near its ~0.3–0.5 mm verification floor without
-algorithmic changes. Next upgrades: in-hand verification for assembly-grade
-accuracy, a wrist-mounted second viewpoint for steeply leaning parts, and
-site-collected scenes (self-labelled by the gripper's success sensor) as a
-permanent regression set.
+algorithmic changes. Next upgrades: the RGB hole cue for the depth-blind
+flips, in-hand verification for assembly-grade accuracy, a wrist-mounted
+second viewpoint for steeply leaning parts, and site-collected scenes
+(self-labelled by the gripper's success sensor) as a permanent regression
+set.
 
 ## Repository layout
 
@@ -200,13 +267,18 @@ src/           scene_io (loading, back-projection) · model_cloud (CAD
                verification) · edge_refine (polish) · detect (geometric
                detector, colour gate, NMS) · detect_seg (learned masks +
                hybrid fallback) · surface_patches
-scripts/       run_pipeline (full pipeline over a split) · eval_oracle_masks ·
-               eval_seg_folds (leave-scenes-out CV) · make_seg_dataset ·
-               render_synthetic (BlenderProc) · onboard_new_part ·
-               merge_submissions
+scripts/       run_pipeline (full pipeline over a split, --pick) ·
+               eval_oracle_masks · eval_seg_folds (leave-scenes-out CV,
+               --ablate) · analyze_failures · score_calibration ·
+               make_seg_dataset · render_synthetic (BlenderProc) ·
+               onboard_new_part · merge_submissions
 weights/       part-seg.pt (YOLO11l-seg, all 20 train scenes)
                part-seg-synthetic.pt (YOLO11m-seg, 1140 synthetic renders)
-results/       train-split prediction JSONs behind every table row
+results/       train-split prediction JSONs behind every table and ablation row
+analysis/      failure_analysis · score_calibration · ablation · runtime
+deploy/        Dockerfile · OFFLINE.md · requirements-lock.txt ·
+               live_adapter.py · jetson-nano/
+setup.sh       venv from the pinned lock (--cpu | --cuda | --jetson-nano)
 run_all.sh     one-command run on any release folder (auto-scores if GT present)
 submission.json / overlays_test/   test-split deliverables
 ```
@@ -214,8 +286,10 @@ submission.json / overlays_test/   test-split deliverables
 ## Reproducing
 
 ```bash
-python -m venv .venv && .venv/bin/pip install -r requirements.txt   # Python 3.10-3.12
-./run_all.sh <release_path> [split]        # submission + overlays (+ score if GT)
+./setup.sh                                  # .venv from deploy/requirements-lock.txt (Python 3.12; --cpu/--cuda)
+./run_all.sh <release_path> [split]         # submission + overlays (+ score if GT)
+# or: docker build -f deploy/Dockerfile -t pose-est:cpu . && docker run --rm --network none \
+#         -v <release_path>:/data:ro -v $PWD/out:/out pose-est:cpu /data test /out
 
 # Table rows (train split):
 .venv/bin/python scripts/eval_oracle_masks.py --root . --workers 6 --out results/train_gt_masks.json
@@ -233,6 +307,10 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt   # Python 3.1
 .venv/bin/python scripts/eval_seg_folds.py --root . --runs seg_runs_l --conf 0.4 --out results/train_yolo11l_single.json
 .venv/bin/python scripts/eval_seg_folds.py --root . --runs seg_runs_l \
     --extra-weights weights/part-seg-synthetic.pt --conf 0.25 --out results/train_ensemble_run1.json
+# ablation rows: add --ablate no_grid | no_flips | no_polish | no_gate | no_own_mask
+# analyses:
+.venv/bin/python scripts/analyze_failures.py --root . --submission results/train_ensemble_run1.json --out analysis
+.venv/bin/python scripts/score_calibration.py --root . --submission results/train_ensemble_run1.json --out analysis
 
 # Shipped weights: same recipe on the full split -> weights/part-seg.pt.
 .venv/bin/python scripts/make_seg_dataset.py --root . --out seg_data/full
