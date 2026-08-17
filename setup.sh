@@ -27,8 +27,7 @@ if [ "$FLAVOUR" = "auto" ]; then
 fi
 
 if [ "$FLAVOUR" = "--jetson-nano" ]; then
-    PYTHON="${PYTHON:-python3.8}"
-    [ "$PYTHON" = python3 ] && PYTHON=python3.8
+    if [ "$PYTHON" = python3 ]; then PYTHON=python3.8; fi
     REQ=(-r deploy/jetson-nano/requirements-jetson-nano.txt)
 else
     VER="$("$PYTHON" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"

@@ -85,8 +85,10 @@ community cp38 wheel is needed), and memory headroom inside 4 GB. See
 - Network: none. Verified twice — the pipeline plus `visualize.py` in an
   `unshare -rn` namespace with empty `HOME`/`YOLO_CONFIG_DIR`/`MPLCONFIGDIR`
   (exit 0, no font/model download, only `settings.json` written), and the
-  Docker image with `--network none` on test scenes 000001/000002 (exit 0,
-  9 + 5 poses identical to `submission.json` within 0.1 mm / 0.3°).
+  image built from a clean clone of the committed tree, run with
+  `--network none` on test scenes 000001/000002/000053 (exit 0, 9 + 5 + 11
+  poses, 25 of 27 within 0.03 mm / 0.15° of `submission.json`; the other
+  two are the RANSAC run-to-run spread the report documents).
 - Env vars honoured by this ultralytics (8.4): `YOLO_OFFLINE=1` skips its
   DNS reachability probe and usage events, `YOLO_AUTOINSTALL=0` forbids
   `pip install` attempts, `yolo settings sync=False` turns telemetry off
@@ -122,8 +124,11 @@ fraction of the scene time.
   (segmenter confidence × depth verification) — one confident pick per
   cycle, then grab and rescan; a bin changes after every pick, so a full
   ranking is wasted work. On test/000001 this returned in 0.7 s where the
-  full scan took 15 s. Gate on `score`: ≥ 0.6 keeps 0.95 precision at
-  10 mm on cross-validated train scenes, ≥ 0.4 keeps 0.84 (report.md).
+  full scan took 15 s. `deploy/pick_demo.py` runs exactly this path on a
+  scene folder (arrays in, grasp pose out) — the check to run on a new
+  machine or after a recalibration. Gate on `score`: ≥ 0.7 keeps precision
+  1.00 at 5 mm on cross-validated train scenes, ≥ 0.6 keeps 0.95 at 10 mm
+  (`analysis/score_calibration.md`).
 - **Failure handling.** `run_pipeline.py` already isolates scenes: an
   exception yields an empty list for that scene, never a crash. For a cell:
   wrap each cycle in a watchdog (a scene should never exceed ~60 s on the
