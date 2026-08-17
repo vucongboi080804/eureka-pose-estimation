@@ -16,6 +16,7 @@ import multiprocessing as mp
 import os
 import sys
 import time
+import traceback
 from concurrent.futures import ProcessPoolExecutor
 
 import cv2
@@ -37,7 +38,6 @@ _SEG_EXTRA = None
 
 def _init_worker(ply_path, seg_weights=None, extra_weights=None):
     global _MODEL, _MESH, _SEG, _SEG_EXTRA
-    os.environ.setdefault("OMP_NUM_THREADS", "2")
     _MODEL = load_model_cloud(ply_path)
     import trimesh
     m = trimesh.load(ply_path, force="mesh")
@@ -51,20 +51,26 @@ def _init_worker(ply_path, seg_weights=None, extra_weights=None):
 
 def _run_scene(args):
     root, split, scene_id, labels_out, passes = args
-    scene = load_scene(root, split, scene_id)
-    estimator = PoseEstimator(_MODEL, scene.depth, scene.K,
-                              part_mask=part_pixel_mask(scene.rgb))
     t0 = time.time()
-    if _SEG is not None:
-        found = detect_scene_hybrid(scene, estimator, _SEG,
-                                    extra_model=_SEG_EXTRA)
-    else:
-        found = detect_scene(scene, estimator, passes=passes)
-    preds = [{"R": e.R.tolist(), "t": e.t.tolist(),
-              "score": round(e.submission_score, 4)} for e in found]
-
-    if labels_out:
-        _write_labels(labels_out, scene_id, found, scene)
+    try:
+        scene = load_scene(root, split, scene_id)
+        estimator = PoseEstimator(_MODEL, scene.depth, scene.K,
+                                  part_mask=part_pixel_mask(scene.rgb))
+        if _SEG is not None:
+            found = detect_scene_hybrid(scene, estimator, _SEG,
+                                        extra_model=_SEG_EXTRA)
+        else:
+            found = detect_scene(scene, estimator, passes=passes)
+        preds = [{"R": e.R.tolist(), "t": e.t.tolist(),
+                  "score": round(e.submission_score, 4)} for e in found]
+        if labels_out:
+            _write_labels(labels_out, scene_id, found, scene)
+    except Exception:
+        # One unreadable or degenerate scene must not take the whole
+        # submission down: report it and submit an empty list for it.
+        print("%s  FAILED, submitting no poses" % scene_id, file=sys.stderr)
+        traceback.print_exc()
+        return scene_id, [], time.time() - t0
     return scene_id, preds, time.time() - t0
 
 
@@ -123,6 +129,11 @@ def main():
         _init_worker(ply, args.seg_model, args.extra_seg_model)
         results = map(_run_scene, jobs)
     else:
+        # Share the cores between workers. Must be set in the parent before
+        # spawning: libgomp reads OMP_NUM_THREADS once when Open3D loads,
+        # so setting it inside the child initializer would come too late.
+        os.environ.setdefault(
+            "OMP_NUM_THREADS", str(max(1, os.cpu_count() // args.workers)))
         pool = ProcessPoolExecutor(max_workers=args.workers,
                                    mp_context=mp.get_context("spawn"),
                                    initializer=_init_worker,

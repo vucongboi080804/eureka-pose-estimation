@@ -43,6 +43,10 @@ def load_model_cloud(ply_path: str, voxel: float = 0.003,
     mesh = o3d.io.read_triangle_mesh(ply_path)
     mesh.compute_vertex_normals()
 
+    # Fixed seed: every worker and every run registers against the same
+    # model sample. (Open3D's RANSAC itself stays stochastic -- its OpenMP
+    # threads share one random engine -- so runs still differ slightly.)
+    o3d.utility.random.seed(0)
     fine = mesh.sample_points_poisson_disk(fine_points)
     coarse = fine.voxel_down_sample(voxel)
 

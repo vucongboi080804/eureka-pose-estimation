@@ -9,7 +9,7 @@ the same flag builds the folds for an honest leave-scenes-out evaluation
 of the segmenter on the training split.
 
     .venv/bin/python scripts/make_seg_dataset.py --root . \
-        --out seg_data/fold0 --val-scenes 000007 000019 000030 000047 000059
+        --out seg_data/fold0 --val-scenes 000007 000014 000021 000033 000047
 """
 
 import argparse

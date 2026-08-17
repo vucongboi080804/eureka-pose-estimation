@@ -42,6 +42,8 @@ def load_scene(root: str, split: str, scene_id: str) -> Scene:
     with open(os.path.join(d, "camera.json")) as fh:
         cam = json.load(fh)
     depth_raw = cv2.imread(os.path.join(d, "depth.png"), cv2.IMREAD_UNCHANGED)
+    if depth_raw is None:
+        raise FileNotFoundError(os.path.join(d, "depth.png"))
     depth = depth_raw.astype(np.float64) * cam["depth_scale"]
     return Scene(
         scene_id=scene_id,

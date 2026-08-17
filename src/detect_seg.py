@@ -34,6 +34,7 @@ def detect_from_masks(scene: Scene, estimator: PoseEstimator,
         scene: The capture.
         estimator: Prepared registration stack for this scene.
         masks: [(bool_mask, seg_confidence)], any order.
+        attempts: RANSAC restart budget per mask.
 
     Returns:
         Verified pose estimates, deduplicated.
@@ -50,7 +51,7 @@ def detect_from_masks(scene: Scene, estimator: PoseEstimator,
         if len(points) < 300:
             continue
         anchor = points[np.argmin(points[:, 2])]
-        est = estimator.estimate(points, attempts=3, anchor=anchor)
+        est = estimator.estimate(points, attempts=attempts, anchor=anchor)
         if est is None or est.confidence < MIN_CONFIDENCE:
             continue
         # Submission rank = joint belief: how much the segmenter trusted

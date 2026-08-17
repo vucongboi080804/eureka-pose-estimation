@@ -20,7 +20,6 @@ import blenderproc as bproc
 import argparse
 import os
 import random
-import sys
 
 import numpy as np
 

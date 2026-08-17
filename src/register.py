@@ -70,6 +70,7 @@ class PoseEstimate:
     rmse: float            # inlier RMSE at FITNESS_DIST, metres
     verdict: Verdict       # depth-map verification of the winning pose
     n_points: int          # scene points used
+    seg_conf: float = 1.0  # confidence of the proposing segmenter, if any
 
     @property
     def confidence(self) -> float:
@@ -79,7 +80,7 @@ class PoseEstimate:
     def submission_score(self) -> float:
         """Joint belief for ranking: pose verification times the proposing
         segmenter's confidence (1.0 when no segmenter was involved)."""
-        return self.confidence * getattr(self, "seg_conf", 1.0)
+        return self.confidence * self.seg_conf
 
 
 def make_scene_cloud(points: np.ndarray, voxel: float) -> o3d.geometry.PointCloud:

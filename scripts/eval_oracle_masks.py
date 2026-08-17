@@ -36,7 +36,6 @@ ERODE_PX = 2
 
 def _init_worker(ply_path):
     global _MODEL
-    os.environ.setdefault("OMP_NUM_THREADS", "2")
     _MODEL = load_model_cloud(ply_path)
 
 
@@ -87,6 +86,10 @@ def main():
         results = map(_run_scene, jobs)
     else:
         # spawn, not fork: Open3D's OpenMP pools deadlock in forked children.
+        # OMP_NUM_THREADS must be set here, in the parent: libgomp reads it
+        # once when Open3D loads, before a child initializer could run.
+        os.environ.setdefault(
+            "OMP_NUM_THREADS", str(max(1, os.cpu_count() // args.workers)))
         pool = ProcessPoolExecutor(max_workers=args.workers,
                                    mp_context=mp.get_context("spawn"),
                                    initializer=_init_worker, initargs=(ply,))
