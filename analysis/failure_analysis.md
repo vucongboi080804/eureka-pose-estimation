@@ -27,7 +27,7 @@ words:
 | group | count | instances | consistent across runs? | data limit or fixable |
 | ----- | ----- | --------- | ----------------------- | --------------------- |
 | duplicate GT labels: a second `poses.json` entry within 4 mm MSSD of another, with its own near-identical mask | 5 | 000022 #4 (twin #5), 000022 #8 (twin #2), 000030 #3 and #6 (twins of #8), 000041 #5 (twin #7) | yes: every NMS'd run misses exactly these | data: one pose can claim one instance; only duplicate predictions could match them |
-| stem-axis flips: the output pose is a half-turn (177–180°) about model Z, 6–9 mm off | 2 (+1 in the earlier draw) | 000041 #0, 000047 #3 (and 000014 #1 in the earlier draw) | yes: missed in run2, YOLO-single and synthetic-only; 000047 #3 also with GT masks | 2 verifier-blind (RGB cue would fix); 000014 #1 is a search failure that a re-draw finds |
+| stem-axis flips: the output pose is a half-turn (177–180°) about model Z, 6–9 mm off | 2 (+1 in the earlier draw) | 000041 #0, 000047 #3 (and 000014 #1 in the earlier draw) | yes: missed in run2, YOLO-single and synthetic-only; 000047 #3 also with GT masks | 1 verifier-blind (000047 #3, RGB cue fixes it: 73 → 6 mm), 2 search-reachability (000041 #0 and 000014 #1: from the GT mask the depth verdict already prefers the truth, 0.744 vs 0.682 — the pipeline's RANSAC candidates never reach that basin) |
 
 So the attainable recall for any pipeline that submits one pose per part is
 112/117 = 0.957 at every threshold, and the ensemble reaches 110/112 = 0.982
@@ -53,11 +53,23 @@ scene depth) says which side each case falls on:
 | 000041 #0 (boss up, tilt 8°, visib 0.82) | 0.66 / 0.15 / 0.36 | 0.82 / 0.06 / **0.69**, score 0.66 | the boss end is under a leaning neighbour (measured 674–711 mm across the boss footprint), so the only depth evidence left is the visible end hole, and the sensor mostly fills it (708–719 mm inside the 12.6 mm hole against a plate top of 709 mm), within the verifier's margin. Depth cannot decide; the RGB can — the flip predicts no hole where a dark hole is visible. |
 | 000047 #3 (boss up, tilt 7°) | 0.66 / 0.24 / 0.19 | 0.84 / 0.06 / **0.72**, score 0.67 | the RGB shows the 11 mm boss standing (side wall visible, `failures/000047_inst03_mssd74mm.png`), the depth does not: a flat 708–710 mm over the boss top where the plate reads 712 mm and the model expects 699 mm. Sensor artefact (the boss is flattened to ~3 mm); the verifier then prefers the boss-down flip, and the GT-mask run makes the same choice. Fixable by an RGB cue: the flip predicts a through-hole on solid part-coloured pixels (the boss top). |
 
-Two of three are therefore a data/sensor limit **for a depth-only verifier**,
+Only 000047 #3 is a verdict failure in the strict sense: re-running the
+three π-rivals from the *ground-truth* mask, the depth verifier prefers the
+correct pose for 000041 #0 (0.744 vs 0.682) and only loses on 000047 #3,
+where the sensor flattens the boss. The other two are search-reachability
+failures — the basin exists, RANSAC on the predicted mask does not land in
+it. Read the row below as "what the verifier sees when the search reaches
+both rivals". One of the three is therefore a data/sensor limit **for a
+depth-only verifier**,
 not for the pipeline: an RGB hole-consistency term when ranking flip rivals
 (observed dark holes inside the proposal mask that a rival leaves
 unexplained, predicted holes landing on part-coloured pixels: `edge_refine`
-already extracts both) separates all three. The submission `score` already
+already extracts both) settles it: on an isolated re-run the cue turns
+000047 #3 from 73.3 mm into 6.2 mm and leaves 000041 #0 at its
+search-limited 4.2 mm. Ranking the three π-rivals of every one of the 117
+ground-truth poses, the correct one wins 116/117 without the cue and
+117/117 with it at any weight between 0.2 and 0.8 — an upper bound, since
+the pipeline ranks RANSAC candidates rather than GT-refined ones. The submission `score` already
 flags one of them (0.37) as doubtful; the other two flips are confident
 (0.66, 0.67) because the depth genuinely supports them.
 
@@ -132,8 +144,9 @@ in green, nearest unclaimed prediction in red (each ≤ 150 KB).
 Segmentation: 0 of 7 misses (every missed instance had a ≥ 0.79 IoU
 proposal from the fold segmenter, and both segmenters proposed all but one); the segmenters' cost shows only in
 precision (37 FPs, all wrong registrations of real proposals).
-Registration/verification: 2 misses — flips the depth channel cannot
-arbitrate (plus, in the earlier draw, 1 search failure) — and the 4–10 mm
+Registration/verification: 2 misses — one flip the depth channel cannot
+arbitrate and one the search never reaches (plus, in the earlier draw, a
+second search failure) — and the 4–10 mm
 tail (5 instances) and the
 2 mm-recall plateau, all of which trace to the sensor: 1 mm quantisation,
 hole floors smeared, an 11 mm boss flattened to 3 mm. Labels: 5 misses are
