@@ -10,6 +10,7 @@ model/
 
 # Working notes and intermediate outputs
 plans/
+out_*/
 oracle_masks.json
 pipeline_train.json
 pipeline_train_3pass.json

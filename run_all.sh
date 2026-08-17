@@ -9,22 +9,25 @@
 #   ./run_all.sh /path/to/private_release   # the interview's dataset
 #   ./run_all.sh /path/to/release val out_val
 #
-# Uses the shipped real-trained segmenter with automatic fallbacks (the
-# synthetic-only model and the geometric detector cover domain shift).
-# Requires the .venv from requirements.txt.
+# Pools proposals from the two shipped segmenters (real-trained and
+# synthetic-only); the training-free geometric detector joins in
+# automatically when too few detections verify (domain shift).
+# Requires the .venv from requirements.txt. GPU optional (CPU is ~2x slower).
 set -euo pipefail
 cd "$(dirname "$0")"
 
 RELEASE="${1:?usage: ./run_all.sh <release_path> [split] [out_dir]}"
 SPLIT="${2:-test}"
-OUT="${3:-out_$(basename "$RELEASE")_$SPLIT}"
+TAG="$(basename "$(realpath "$RELEASE")")"
+OUT="${3:-out_${TAG}_${SPLIT}}"
+WORKERS="${WORKERS:-6}"     # override: WORKERS=2 ./run_all.sh ...
 PY=.venv/bin/python
 
 mkdir -p "$OUT"
 echo "== Detecting and estimating poses ($RELEASE / $SPLIT) =="
 $PY scripts/run_pipeline.py --root "$RELEASE" --split "$SPLIT" \
     --out "$OUT/submission.json" --labels-out "$OUT/pred_labels" \
-    --workers 6 --seg-model weights/part-seg.pt --extra-seg-model weights/part-seg-synthetic.pt
+    --workers "$WORKERS" --seg-model weights/part-seg.pt --extra-seg-model weights/part-seg-synthetic.pt
 
 echo "== Rendering overlays =="
 MPLBACKEND=Agg $PY visualize.py --root "$RELEASE" --split "$SPLIT" \

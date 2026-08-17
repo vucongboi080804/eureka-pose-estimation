@@ -8,7 +8,7 @@ verification stack stays -- learned masks propose, depth physics disposes.
 import cv2
 import numpy as np
 
-from .detect import MIN_CONFIDENCE, detect_scene, nms
+from .detect import MIN_CONFIDENCE, detect_scene, nms, part_pixel_mask
 from .register import PoseEstimator
 from .scene_io import Scene, backproject
 
@@ -17,6 +17,16 @@ ERODE_PX = 2
 
 #: Predicted masks smaller than this cannot hold a registrable instance.
 MIN_MASK_PX = 1200
+
+#: A proposal must be at least this part-coloured to be registered. The
+#: synthetic-only segmenter is trained with randomised part colours, so it
+#: also fires on plain light background (tray rims, white table); a flat
+#: patch of background can still pass depth verification because ICP sinks
+#: the flat CAD plate flush into the support plane. Real proposals of either
+#: segmenter are >= 0.7 part-coloured, background ones <= 0.16 -- the gate
+#: sits in the empty middle. It reuses the HSV gate the hole polisher
+#: already relies on, so it adds no new colour assumption to the pipeline.
+MIN_PART_COLOUR_FRACTION = 0.3
 
 #: Domain-shift guard: when fewer than this many detections verify at least
 #: this well, the segmenter is assumed to be out of its depth (new lighting,
@@ -39,9 +49,12 @@ def detect_from_masks(scene: Scene, estimator: PoseEstimator,
     Returns:
         Verified pose estimates, deduplicated.
     """
+    part_colour = part_pixel_mask(scene.rgb)
     found = []
     for mask, seg_conf in sorted(masks, key=lambda m: -m[1]):
         if mask.sum() < MIN_MASK_PX:
+            continue
+        if part_colour[mask].mean() < MIN_PART_COLOUR_FRACTION:
             continue
         slim = cv2.erode(mask.astype(np.uint8), np.ones((3, 3), np.uint8),
                          iterations=ERODE_PX).astype(bool)
