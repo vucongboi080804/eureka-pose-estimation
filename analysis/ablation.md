@@ -12,10 +12,10 @@ whose top-scored pose lands within 5 mm. Every row is a file in `results/`.
 | **Full pipeline** (`--ablate none`, submitted) | `train_ensemble_run1.json` | 0.521 | 0.889 | 0.940 | 0.949 | 0.957 | 0.767 | **0.851** | 1.000 | 183 |
 | no RGB hole cue | `ablation_no_hole_cue.json` | 0.521 | 0.897 | 0.932 | 0.932 | 0.940 | 0.748 | 0.844 | 1.000 | 185 |
 | no own-mask check † | `ablation_no_own_mask.json` | 0.504 | 0.889 | 0.932 | 0.932 | 0.940 | 0.719 | 0.839 | 1.000 | 191 |
-| no flip rivals † | `ablation_no_flips.json` | 0.530 | 0.889 | 0.932 | 0.932 | 0.940 | 0.738 | 0.844 | 1.000 | 188 |
-| no rotation-grid fallback † | `ablation_no_grid.json` | 0.521 | 0.838 | 0.863 | 0.872 | 0.880 | 0.792 | 0.795 | 1.000 | 164 |
-| no polish † | `ablation_no_polish.json` | 0.496 | 0.889 | 0.932 | 0.932 | 0.949 | 0.760 | 0.839 | 1.000 | 183 |
-| no part-colour gate † | `ablation_no_gate.json` | 0.521 | 0.889 | 0.932 | 0.940 | 0.949 | 0.569 | 0.846 | 1.000 | 233 |
+| no flip rivals | `ablation_no_flips_v2.json` | 0.530 | 0.889 | 0.940 | 0.949 | 0.957 | 0.747 | 0.853 | 1.000 | 186 |
+| no rotation-grid fallback | `ablation_no_grid_v2.json` | 0.513 | 0.838 | 0.872 | 0.880 | 0.880 | 0.824 | 0.797 | 1.000 | 157 |
+| no polish | `ablation_no_polish_v2.json` | 0.496 | 0.897 | 0.940 | 0.940 | 0.957 | 0.783 | 0.846 | 1.000 | 181 |
+| no part-colour gate | `ablation_no_gate_v2.json` | 0.521 | 0.897 | 0.940 | 0.949 | 0.957 | 0.599 | 0.853 | 1.000 | 224 |
 | single segmenter (YOLO11l, conf 0.4) | `train_yolo11l_single.json` | 0.496 | 0.855 | 0.906 | 0.906 | 0.915 | 0.863 | 0.815 | 1.000 | 152 |
 | GT masks, one proposal per instance | `train_gt_masks.json` | 0.453 | 0.872 | 0.957 | 0.966 | 0.991 | 0.983 | 0.848 | 1.000 | 133 |
 | second draw of the submitted configuration | `train_ensemble_run2.json` | 0.521 | 0.889 | 0.940 | 0.949 | 0.957 | 0.778 | 0.851 | 1.000 | 183 |
@@ -34,17 +34,16 @@ own-mask check give 0.839 / 0.836 / 0.836, four earlier draws spanned
 inside that band are noise; only the larger ones below are read as
 effects. Top-1 is 1.000 in every row.
 
-† **These five rows predate the RGB hole cue**, so each has *two* stages
-off: the named one and the cue. Compare them against
-`ablation_no_hole_cue.json` (AR 0.844), not against the submitted row —
-against 0.851 part of every one of their deltas is the cue rather than the
-named stage. The clearest case is "no flip rivals": 0.844 against the
-0.844 no-cue baseline is no measurable effect, which is the conclusion
-below; read against 0.851 it would look like the flips buy 0.007. The
-own-mask row has three stages off in that sense (it predates both). The
-`no_hole_cue` row itself is exact: with the cue off, candidate ranking is
-the raw depth-confidence list it always was, so the pre-cue draws are
-valid no-cue rows.
+† **The own-mask row predates the RGB hole cue**, so it has two stages off,
+not one: compare it against `ablation_no_hole_cue.json` (AR 0.844), not
+against the submitted row. Every other `no_*` row was measured against the
+shipped configuration. (The `no_hole_cue` row is exact either way: with the
+cue off, candidate ranking is the raw depth-confidence list it always was,
+so a pre-cue draw is a valid no-cue row — which is why the two earlier
+draws serve as its second and third measurements.) An earlier version of
+this table compared four rows measured before the cue against a baseline
+that had it, which inflated each of their deltas by whatever the cue was
+worth; those four have been re-measured.
 
 ## What each stage buys
 
@@ -70,7 +69,8 @@ it can never add a pose.
 flipped pose; every converged pose spawns three π-rotated rivals, each
 re-refined, and the depth verdict — not ICP fitness — picks between them
 (report: *Verification beats fitness*). On the learned-mask path the
-ablation shows no measurable loss without them (AR 0.844 both ways), which
+ablation shows no measurable loss without them (0.853 without against
+0.851 with, inside the noise band), which
 is consistent with the fallback covering the same failure: a flipped winner
 verifies below 0.5, that triggers the rotation-grid sweep, and the grid
 finds the right orientation instead. On this path the rivals are a
@@ -87,10 +87,10 @@ them was not ablated, and the shipped default keeps them on.
 verifying at ≥ 0.5, a Fibonacci-sphere grid of orientations (translation
 anchored at the mask's closest-to-camera point) is coarse-ICP'd, ranked by
 the depth verdict and the best few fully refined. This is the largest single
-effect in the table: without it recall at 10 mm drops 0.940 → 0.880 (7
-instances) and AR 0.844 → 0.795. The grid is what makes the instances
+effect in the table: without it recall at 10 mm drops 0.957 → 0.880 (nine
+instances) and AR 0.851 → 0.797. The grid is what makes the instances
 feature matching misses registrable at all (report: it fixed 14 of the 15
-hard instances on the geometric path). Precision rises without it (0.792)
+hard instances on the geometric path). Precision rises without it (0.824)
 only because the hard proposals then die instead of being solved.
 
 **Polish** (`polish`, `src/edge_refine.py`). Integer-millimetre depth
@@ -98,7 +98,8 @@ erases ~2 mm of in-plane information; the polish alternates a deadzoned
 Gauss-Newton against the CAD mesh with hole-centre alignment, whose
 sub-pixel image features pin the in-plane shift. Its effect is confined to
 the strictest threshold, as designed: 2 mm recall 0.496 → 0.521 (three
-instances), nothing at ≥ 4 mm. That is at the edge of the noise band, and
+instances), with 4 mm and above unchanged or a shade better without it.
+That is at the edge of the noise band, and
 consistent with the report's finding that the depth quantisation floor —
 not the refinement — bounds 2 mm recall near 0.5.
 
@@ -107,8 +108,8 @@ synthetic-only segmenter is trained with randomised part colours and fires
 on plain light background; a flat CAD plate sunk flush into the tray floor
 passes free-space verification, and it also explains its (background)
 mask's points, so the own-mask check does not catch it. Without the gate the
-pipeline emits 233 predictions instead of 185 and precision at 10 mm falls
-0.748 → 0.569; recall and top-1 are unchanged. Same conclusion as the report
+pipeline emits 224 predictions instead of 183 and precision at 10 mm falls
+0.767 → 0.599; recall and top-1 are unchanged. Same conclusion as the report
 (0.56 → 0.73 before the own-mask check existed): the gate is pure precision.
 
 **Second segmenter** (`train_yolo11l_single.json` → the full pipeline). One
