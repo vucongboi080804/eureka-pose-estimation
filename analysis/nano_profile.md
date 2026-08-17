@@ -22,14 +22,26 @@ run one at a time, CPU-only, on four pinned cores.
 | One segmenter, 960 | `nano_single_960.json` | 0.479 | 0.863 | 0.932 | 0.932 | 0.940 | 0.866 | 0.829 | 1.000 | 110 / 17 |
 | One segmenter, 768 | `nano_single_768.json` | 0.487 | 0.863 | 0.923 | 0.932 | 0.940 | 0.866 | 0.829 | 1.000 | 110 / 17 |
 | One segmenter, 640 | `nano_single_640.json` | 0.496 | 0.863 | 0.923 | 0.923 | 0.932 | 0.845 | 0.827 | 1.000 | 109 / 20 |
+| One segmenter, 640, second draw | `nano_single_640_run2.json` | — | — | — | — | — | — | 0.848 | 1.000 | — |
 
 Recall at each MSSD threshold, precision at 10 mm, AR = mean recall, top-1 =
 fraction of scenes whose top-scored pose lands within 5 mm, TP / FP as
 `score.py` counts them at the 10 mm threshold. The pool holds 117 required
 instances, so one instance is 0.0085 of recall at a threshold and 0.0017 of
-AR; repeated draws of one configuration move AR by about ±0.005
-(`analysis/ablation.md`), which is the band below which these deltas are
-noise.
+AR.
+
+**The noise band is not the same for these rows as for the shipped one.**
+`analysis/ablation.md` quotes ±0.005 from repeated draws of the two-segmenter
+configuration. Single-segmenter rows swing about three times wider:
+`analysis/edge_model.md` measures the same single/640 configuration at
+0.827 and 0.848 across two draws (mean 0.838), and a single nano model at
+0.846 / 0.834 / 0.832. The mechanism is proposal count — one segmenter puts
+about 1.3 masks on each instance against the ensemble's 1.55, so fewer
+independent RANSAC draws reach each one and a borderline instance flips in
+or out. **Read every single-segmenter row here as ±0.015, and treat each as
+one draw rather than a settled number.** The rows were measured before that
+was known; the conclusions below survive it, but two of them survive with a
+different strength, and each says which.
 
 Every row, from the repository root:
 
@@ -53,18 +65,29 @@ Each is scored with
 The shipped row is the command `analysis/ablation.md` already documents;
 `--imgsz` defaults to 960, so omitting it and passing `960` are the same run.
 
-**Input side is nearly free.** 960 → 640 costs 0.002 AR with one segmenter
-(0.829 → 0.827) and 0.007 with two (0.851 → 0.844) — both inside or at the
-edge of the ±0.005 draw-to-draw band. Proposal counts barely move (185, 191
+**Input side is nearly free — and the wider band makes this conclusion
+stronger, not weaker.** 960 → 640 costs 0.002 AR with one segmenter
+(0.829 → 0.827) and 0.007 with two (0.851 → 0.844). Three indistinguishable
+numbers spread across a band that is itself ±0.015 is exactly what "no
+effect" looks like; if the input side mattered, a difference would have to
+climb out of that band, and none does. Proposal counts barely move (185, 191
 and 186 masks over the 20 CV scenes at 960, 768 and 640): the part fills
 enough pixels that a 640-px letterbox still resolves it. Only the 2 mm
 column shows a pattern, and it moves the *wrong* way (0.479 → 0.496), which
 is the clearest sign it is noise rather than lost detail — pose accuracy at
 2 mm is set by depth quantisation, not by mask sharpness (`report.md`).
 
-**The second segmenter is the real accuracy knob.** Dropping it costs
-0.022 AR at 960 and 0.017 at 640: 10 mm recall falls 0.957 → 0.940 and
-→ 0.932, two and three required instances. What it takes with it is
+**The second segmenter is the real accuracy knob — direction certain,
+magnitude softer than these single draws suggest.** Dropping it costs 0.022
+AR at 960 and 0.017 at 640 on the rows above: 10 mm recall falls 0.957 →
+0.940 and → 0.932, two and three required instances. Both deltas are
+measured against single draws of the noisier arm, and 0.022 against a ±0.015
+spread is not a magnitude to quote to three decimals. The *direction* is
+solid on more evidence than this table holds: across every single-segmenter
+draw taken since (0.846 / 0.834 / 0.832 for the nano model, 0.827 / 0.848
+for the downscaled large one, `analysis/edge_model.md`), all five sit below
+both draws of the two-segmenter configuration (0.851 / 0.851). Call it about
+one instance, not 0.022. What it takes with it is
 narrower than "recall": the false positives halve too (34 → 17 at 960), so
 precision rises 0.767 → 0.866. That shape fits what
 `analysis/failure_analysis.md` measured on the shipped configuration — the
@@ -132,14 +155,20 @@ a shared display: one worker fits in every configuration, two fit in none.
 
 ## What to run on the board
 
-**One segmenter (`weights/part-seg.pt`) at `--imgsz 640`, in pick mode.**
-It keeps AR at 0.827 — 97 % of the shipped 0.851 — with unchanged top-1
-(1.000) and *better* precision (0.845 vs 0.767), for 62 % less scene time
-(5.6 s vs 14.8 s per full sweep) and 17 % less peak RSS (1.31 GB vs
-1.58 GB); the price is the two to three required instances that only
-survive a second registration attempt, and a thinner pick margin (worst
-scene 0.812 against 0.854) that will occasionally drop a cycle into the
-geometric safety net.
+**One segmenter at `--imgsz 640`, in pick mode** — and since this file was
+written, `analysis/edge_model.md` has trained a segmenter for that slot:
+`weights/part-seg-nano.pt` reaches the same accuracy as the downscaled large
+model (0.837 against 0.838, both means of multiple draws) at 6.0 MB instead
+of 55.9 and 49 ms instead of 619 ms per frame. **The board should run that
+weight**; `deploy/jetson-nano/config.nano.json` does.
+
+Either way the trade is the same: AR around 0.84 against the shipped 0.851 —
+roughly one required instance, and inside the ±0.015 band these rows carry —
+with unchanged top-1 (1.000) and *better* precision (0.845 vs 0.767), for
+62 % less scene time (5.6 s vs 14.8 s per full sweep) and 17 % less peak RSS
+(1.31 GB vs 1.58 GB). The price is a thinner pick margin (worst scene 0.812
+against 0.854) that will occasionally drop a cycle into the geometric safety
+net.
 
 If the cell turns out to have latency headroom on the real board, **two
 segmenters at 640** is the better stop: it recovers AR to 0.844 (0.007 off
@@ -165,7 +194,8 @@ the profile above only changes how much slack it has.
   a board measurement. The qemu-emulated arm64 run brackets it from the
   other side and is not a timing measurement either. The accuracy rows
   should carry across — same weights, same code — but only within the same
-  ±0.005 band, since a different Open3D draws RANSAC differently; the
+  ±0.015 band these single-segmenter rows carry, since a different Open3D
+  draws RANSAC differently; the
   latency and memory rows carry across not at all and have to be
   re-measured on the board.
 - **A genuinely smaller backbone.** "One segmenter" here means the
