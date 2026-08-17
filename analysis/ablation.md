@@ -11,11 +11,11 @@ whose top-scored pose lands within 5 mm. Every row is a file in `results/`.
 |---|---|---|---|---|---|---|---|---|---|---|
 | **Full pipeline** (`--ablate none`, submitted) | `train_ensemble_run1.json` | 0.521 | 0.889 | 0.940 | 0.949 | 0.957 | 0.767 | **0.851** | 1.000 | 183 |
 | no RGB hole cue | `ablation_no_hole_cue.json` | 0.521 | 0.897 | 0.932 | 0.932 | 0.940 | 0.748 | 0.844 | 1.000 | 185 |
-| no hole cue, no own-mask check | `ablation_no_own_mask.json` | 0.504 | 0.889 | 0.932 | 0.932 | 0.940 | 0.719 | 0.839 | 1.000 | 191 |
-| no flip rivals | `ablation_no_flips.json` | 0.530 | 0.889 | 0.932 | 0.932 | 0.940 | 0.738 | 0.844 | 1.000 | 188 |
-| no rotation-grid fallback | `ablation_no_grid.json` | 0.521 | 0.838 | 0.863 | 0.872 | 0.880 | 0.792 | 0.795 | 1.000 | 164 |
-| no polish | `ablation_no_polish.json` | 0.496 | 0.889 | 0.932 | 0.932 | 0.949 | 0.760 | 0.839 | 1.000 | 183 |
-| no part-colour gate | `ablation_no_gate.json` | 0.521 | 0.889 | 0.932 | 0.940 | 0.949 | 0.569 | 0.846 | 1.000 | 233 |
+| no own-mask check † | `ablation_no_own_mask.json` | 0.504 | 0.889 | 0.932 | 0.932 | 0.940 | 0.719 | 0.839 | 1.000 | 191 |
+| no flip rivals † | `ablation_no_flips.json` | 0.530 | 0.889 | 0.932 | 0.932 | 0.940 | 0.738 | 0.844 | 1.000 | 188 |
+| no rotation-grid fallback † | `ablation_no_grid.json` | 0.521 | 0.838 | 0.863 | 0.872 | 0.880 | 0.792 | 0.795 | 1.000 | 164 |
+| no polish † | `ablation_no_polish.json` | 0.496 | 0.889 | 0.932 | 0.932 | 0.949 | 0.760 | 0.839 | 1.000 | 183 |
+| no part-colour gate † | `ablation_no_gate.json` | 0.521 | 0.889 | 0.932 | 0.940 | 0.949 | 0.569 | 0.846 | 1.000 | 233 |
 | single segmenter (YOLO11l, conf 0.4) | `train_yolo11l_single.json` | 0.496 | 0.855 | 0.906 | 0.906 | 0.915 | 0.863 | 0.815 | 1.000 | 152 |
 | GT masks, one proposal per instance | `train_gt_masks.json` | 0.453 | 0.872 | 0.957 | 0.966 | 0.991 | 0.983 | 0.848 | 1.000 | 133 |
 | second draw of the submitted configuration | `train_ensemble_run2.json` | 0.521 | 0.889 | 0.940 | 0.949 | 0.957 | 0.778 | 0.851 | 1.000 | 183 |
@@ -34,11 +34,17 @@ own-mask check give 0.839 / 0.836 / 0.836, four earlier draws spanned
 inside that band are noise; only the larger ones below are read as
 effects. Top-1 is 1.000 in every row.
 
-The `no_*` rows switch one stage off from the submitted configuration; the
-own-mask row also predates the hole cue, which is why it is labelled with
-both. Rows produced before a later stage existed are only valid because
-that stage's off-path is provably the earlier code: with `hole_cue` off,
-candidate ranking is the raw depth confidence list it always was.
+† **These five rows predate the RGB hole cue**, so each has *two* stages
+off: the named one and the cue. Compare them against
+`ablation_no_hole_cue.json` (AR 0.844), not against the submitted row —
+against 0.851 part of every one of their deltas is the cue rather than the
+named stage. The clearest case is "no flip rivals": 0.844 against the
+0.844 no-cue baseline is no measurable effect, which is the conclusion
+below; read against 0.851 it would look like the flips buy 0.007. The
+own-mask row has three stages off in that sense (it predates both). The
+`no_hole_cue` row itself is exact: with the cue off, candidate ranking is
+the raw depth-confidence list it always was, so the pre-cue draws are
+valid no-cue rows.
 
 ## What each stage buys
 
