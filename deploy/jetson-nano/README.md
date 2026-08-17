@@ -551,8 +551,23 @@ here because it cannot be tested off-board.
   SPEED  : board takes 9.0x x86_64
   ```
 
+  The whole 40-scene test split was also swept on the board in full-sweep
+  mode (`results/board/test_sweep_nano640.json`): **329 poses, 34 minutes,
+  51.5 s mean and 237 s worst per scene** — which is the case *for* pick
+  mode, since the same board answers a single pick in 2.7 s. Against the
+  same configuration run on x86 it produces the **same 329 poses**, 95.1 %
+  of them within 2 mm and 2 degrees, top-1 agreeing on 38 of 40 scenes. That
+  number means nothing without its control, so here it is: two runs of the
+  same configuration on the *same x86 machine* agree on 96.7 % and 39 of 40,
+  with the identical worst case — scene 000043, 31.3 mm against the board's
+  31.4 mm, a bistable instance that flips between RANSAC draws regardless of
+  hardware. **The board is not distinguishable from another draw on the
+  desktop.**
+
   **A pick is 2.6–2.7 s and peaks at 624 MB**, with a one-off 23.6 s model
-  load at start. That is inside the 4–8 s production cycle this runbook
+  load at start. Under that load the container held all four cores (399 %
+  CPU) at 476 MB, the board stayed at 1479 MHz with no throttling, and the
+  hottest zone reached 50 °C. That is inside the 4–8 s production cycle this runbook
   designs against, on a headless $99 board with no GPU inference, and it
   leaves the unit's `MemoryMax=2600M` a factor of four.
 
