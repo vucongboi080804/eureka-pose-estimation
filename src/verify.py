@@ -16,6 +16,8 @@ Two sources of false "violation" are excluded before judging:
   background. The comparison runs on the silhouette's interior only.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import cv2

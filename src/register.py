@@ -19,6 +19,8 @@ handled explicitly:
   free space the camera saw behind.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import numpy as np
@@ -168,7 +170,8 @@ class PoseEstimator:
     """Registers instance point clouds of one scene against the CAD model."""
 
     def __init__(self, model: ModelCloud, depth: np.ndarray, K: np.ndarray,
-                 part_mask: np.ndarray | None = None):
+                 part_mask: np.ndarray | None = None, flips: bool = True,
+                 grid: bool = True, polish: bool = True):
         """Args:
             model: Prepared CAD clouds and features.
             depth: (H, W) scene depth, metres.
@@ -177,10 +180,16 @@ class PoseEstimator:
                 erosion). When given, winning poses get a final joint
                 depth+edge polish -- the stage that recovers the in-plane
                 precision quantised depth cannot provide.
+            flips, grid, polish: Ablation switches for the flip rivals, the
+                rotation-grid fallback and the polish stage. All on in
+                production; each off measures what that stage buys.
         """
         self.model = model
         self.depth = depth
         self.K = K
+        self.use_flips = flips
+        self.use_grid = grid
+        self.use_polish = polish
         self._flips = flip_transforms(model)
         self._grid = grid_rotations()
         # Denser grid for the anchored search: the normal gate below prunes
@@ -291,13 +300,14 @@ class PoseEstimator:
         for _ in range(attempts):
             T = self._refine(scene, fine_scene,
                              self._global_init(scene, scene_fpfh))
-            for candidate in [T] + [S @ T for S in self._flips]:
+            rivals = [S @ T for S in self._flips] if self.use_flips else []
+            for candidate in [T] + rivals:
                 T_ref = self._refine(scene, fine_scene, candidate)
                 judged.append((*self._judge(scene, T_ref), T_ref))
             if max(v.confidence for _, v, _ in judged) >= GOOD_CONFIDENCE:
                 break
 
-        if (allow_fallback
+        if (allow_fallback and self.use_grid
                 and max(v.confidence for _, v, _ in judged) < FALLBACK_TRIGGER):
             # Feature matching found nothing that verifies: brute force.
             # Every grid orientation gets a short coarse alignment; the few
@@ -467,7 +477,7 @@ class PoseEstimator:
 
     def _polish(self, points: np.ndarray, T_ms: np.ndarray) -> np.ndarray:
         """Joint depth+edge polish of the winning pose, when enabled."""
-        if self._polisher is None:
+        if self._polisher is None or not self.use_polish:
             return T_ms
         T_co = np.linalg.inv(T_ms)
         R, t = self._polisher.polish(points, T_co[:3, :3], T_co[:3, 3])

@@ -6,6 +6,10 @@ folds together covers the whole train split with held-out predictions.
     .venv/bin/python scripts/eval_seg_folds.py --root . --runs seg_runs \
         --out seg_train.json [--union pipeline_train.json]
     .venv/bin/python score.py --release . --split train --submission seg_train.json
+
+``--ablate`` switches one stage off at a time (flip rivals, rotation-grid
+fallback, polish, part-colour gate, own-mask check) so its contribution can
+be measured against the full configuration.
 """
 
 import argparse
@@ -41,6 +45,10 @@ def merge_nms(rows: list) -> list:
             kept.append(row)
     return kept
 
+#: Stages ``--ablate`` can switch off; ``none`` is the full configuration.
+ABLATIONS = ("none", "no_flips", "no_grid", "no_polish", "no_gate",
+             "no_own_mask")
+
 FOLD_VAL_SCENES = {
     "fold0": ["000007", "000014", "000021", "000033", "000047"],
     "fold1": ["000008", "000019", "000022", "000040", "000054"],
@@ -71,7 +79,15 @@ def main():
                    help="RANSAC restart budget per mask")
     p.add_argument("--conf", type=float, default=0.4,
                    help="Segmentation confidence floor for proposals")
+    p.add_argument("--ablate", action="append", default=[],
+                   metavar="|".join(ABLATIONS),
+                   help="Switch stages off (repeatable, or comma-separated)")
     args = p.parse_args()
+    ablate = {a for arg in args.ablate for a in arg.split(",") if a}
+    unknown = ablate - set(ABLATIONS)
+    if unknown:
+        p.error("unknown --ablate value(s): %s" % ", ".join(sorted(unknown)))
+    ablate.discard("none")
 
     from ultralytics import YOLO
 
@@ -101,14 +117,19 @@ def main():
         for sid in scene_ids:
             scene = load_scene(args.root, "train", sid)
             estimator = PoseEstimator(model_cloud, scene.depth, scene.K,
-                                      part_mask=part_pixel_mask(scene.rgb))
+                                      part_mask=part_pixel_mask(scene.rgb),
+                                      flips="no_flips" not in ablate,
+                                      grid="no_grid" not in ablate,
+                                      polish="no_polish" not in ablate)
             masks = masks_from_model(model, scene.rgb, conf=args.conf)
             if extra is not None:
                 masks += masks_from_model(extra, scene.rgb, conf=args.conf)
             if model2 is not None:
                 masks += masks_from_model(model2, scene.rgb, conf=args.conf)
-            found = detect_from_masks(scene, estimator, masks,
-                                      attempts=args.attempts)
+            found = detect_from_masks(
+                scene, estimator, masks, attempts=args.attempts,
+                colour_gate="no_gate" not in ablate,
+                own_mask_check="no_own_mask" not in ablate)
             rows = [{"R": e.R.tolist(), "t": e.t.tolist(),
                      "score": round(e.submission_score, 4)} for e in found]
             rows = merge_nms(rows + geometric.get(sid, []))
