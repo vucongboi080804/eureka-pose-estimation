@@ -7,6 +7,14 @@ On a machine with internet, the whole thing is two commands:
 ./run_all.sh /path/to/release   # submission.json + overlays (+ score.py when GT ships)
 ```
 
+Verified from a clean clone of the committed tree: `./setup.sh --cpu`
+builds a 2.8 GB CPU environment (torch 2.13.0+cpu, open3d 0.19.0,
+ultralytics 8.4.120) and the pipeline then reproduces the submitted poses
+(23 of 24 within 2 mm and 2° on three test scenes, the odd one the RANSAC
+spread). If the interpreter has no `ensurepip` — Debian and Ubuntu split
+it into `python3.x-venv` — the script falls back to `uv` or `virtualenv`
+and says so.
+
 Inference needs a Python 3.12 environment, the repo (`src/`, `scripts/`,
 `score.py`, `visualize.py`, `run_all.sh`), the two segmenter weights
 (`weights/`, 97 MB) and the release folder (`model/` + scenes). It makes no
