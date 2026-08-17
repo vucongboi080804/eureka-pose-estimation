@@ -1,0 +1,17 @@
+{
+  "cad_path": "model/3d_model.ply",
+  "seg_weights": "weights/part-seg-nano.pt",
+  "extra_seg_weights": null,
+  "seg_imgsz": 640,
+  "seg_conf": 0.25,
+  "pick": true,
+  "pick_score": 0.8,
+  "accept_score": 0.7,
+  "max_concurrency": 1,
+  "omp_threads": 4,
+  "warmup": true,
+  "request_timeout_s": 120.0,
+  "log_level": "INFO",
+  "host": "127.0.0.1",
+  "port": 8080
+}

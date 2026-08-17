@@ -1,11 +1,27 @@
 # Jetson Nano (JetPack 4.6 / Ubuntu 18.04, aarch64) inference image, CPU
 # torch. Built and smoke-tested on an x86 host under qemu-user emulation
 # (docker buildx / binfmt), which is the closest check available without the
-# board; on the board itself the same recipe runs natively.
+# board; on the board itself the same recipe runs natively. Build it on a
+# workstation and `docker save` it over -- do not build on the Nano.
 #
 #   docker build --platform linux/arm64 -f deploy/jetson-nano/Dockerfile -t pose-est:nano .
-#   docker run --rm --network none -v /path/to/release:/data:ro -v $PWD/out:/out \
-#       pose-est:nano /data test /out
+#
+# Two ways to run it. The cell wants the service: a long-lived process that
+# holds the CAD cloud and the segmenter in memory and answers /v1/estimate
+# per frame. --network host puts its 127.0.0.1:8080 on the board's loopback,
+# which is where the cell talks to it (deploy/jetson-nano/README.md).
+#
+#   docker run --rm --network host -v /path/to/release/model:/app/model:ro \
+#       --entrypoint python pose-est:nano \
+#       -m deploy.pose_service.server --config /app/deploy/jetson-nano/config.nano.json
+#
+# The default entrypoint is still the batch pipeline over a whole split,
+# offline. The HEALTHCHECK below probes the service port, so a batch
+# container needs --no-healthcheck or it is reported unhealthy while working
+# perfectly.
+#
+#   docker run --rm --network none --no-healthcheck \
+#       -v /path/to/release:/data:ro -v $PWD/out:/out pose-est:nano /data test /out
 #
 # For the Nano's GPU use the bare-metal recipe in deploy/jetson-nano/README.md
 # (JetPack 4.6 CUDA torch for Python 3.8 is not on PyPI, so it cannot be
@@ -33,6 +49,9 @@ RUN python3.8 -m venv .venv \
 COPY src/ src/
 COPY scripts/ scripts/
 COPY weights/ weights/
+# The service, the live adapter and the board config; `python -m
+# deploy.pose_service.server` resolves against WORKDIR.
+COPY deploy/ deploy/
 COPY score.py visualize.py run_all.sh ./
 
 ENV HOME=/tmp/home \
@@ -48,6 +67,14 @@ ENV HOME=/tmp/home \
 RUN mkdir -p /tmp/home /tmp/yolo /tmp/mpl && chmod -R a+rwx /tmp/home /tmp/yolo /tmp/mpl \
     && yolo settings sync=False \
     && python -c "import open3d, cv2, ultralytics, trimesh, scipy, matplotlib; print('runtime imports ok')"
+
+# Must match "port" in deploy/jetson-nano/config.nano.json.
+EXPOSE 8080
+# /healthz stays not-ready until the models are loaded and warmed, which is
+# tens of seconds on four A57 cores -- hence the start period. urlopen raises
+# on a non-2xx status, so a failed probe is a non-zero exit on its own.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=5).read()"]
 
 ENTRYPOINT ["./run_all.sh"]
 CMD ["/data", "test", "/out"]
