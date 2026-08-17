@@ -1,0 +1,128 @@
+{
+ "schema_version": 1,
+ "timestamp_utc": "2026-08-17T12:48:51Z",
+ "git_commit": "261a6a4",
+ "argv": [
+  "--root",
+  "/data",
+  "--split",
+  "test",
+  "--scenes",
+  "000001",
+  "--profile",
+  "nano",
+  "--repeat",
+  "1",
+  "--pick",
+  "--seg-model",
+  "/app/weights/part-seg-nano.pt",
+  "--extra-seg-model",
+  "",
+  "--imgsz",
+  "640",
+  "--note",
+  "qemu-user aarch64 on the x86 development machine, board limits applied",
+  "--out",
+  "/out/emulated_nano640.json"
+ ],
+ "note": "qemu-user aarch64 on the x86 development machine, board limits applied",
+ "config": {
+  "profile": "nano",
+  "threads": 4,
+  "cpu_only": true,
+  "root": "/data",
+  "split": "test",
+  "pick": true,
+  "repeat": 1,
+  "workers": 1,
+  "seg_model": "part-seg-nano.pt",
+  "extra_seg_model": null,
+  "imgsz": 640
+ },
+ "host": {
+  "machine": "aarch64",
+  "kernel": "7.0.0-28-generic",
+  "cpu_model": "ARMv8 Processor rev 0 (v8l) (synthesised by qemu)",
+  "cpu_count": 20,
+  "cpu_affinity": 20,
+  "total_ram_mb": 31804,
+  "cgroup": {
+   "cpu_quota": 4.0,
+   "memory_limit_mb": 4295
+  },
+  "jetson": false,
+  "device_tree_model": null,
+  "nv_tegra_release": null,
+  "emulation_evidence": [
+   "CPU implementer 0x00 (no such vendor)",
+   "BogoMIPS exactly 100.00 (qemu constant)"
+  ],
+  "python": "3.8.0",
+  "versions": {
+   "torch": "2.4.1",
+   "open3d": "0.18.0",
+   "ultralytics": "8.4.120",
+   "cv2": "4.10.0",
+   "numpy": "1.24.4",
+   "scipy": "1.10.1",
+   "trimesh": null
+  },
+  "torch_cuda": false,
+  "cuda_device": null,
+  "platform_kind": "qemu-user"
+ },
+ "model_load_s": 40.465,
+ "peak_rss_mb": 739.5,
+ "determinism": "Open3D RANSAC is stochastic (its OpenMP threads share one random engine), so repeats of one scene differ on one machine. Per-repeat poses are kept so the cross-machine tolerance can be judged against the same-machine spread.",
+ "scenes": {
+  "000001": {
+   "repeats": [
+    {
+     "wall_s": 20.85,
+     "stages_s": {
+      "io": 0.05,
+      "setup": 0.306,
+      "segmenter": 17.311,
+      "register": 3.183
+     },
+     "proposals": {
+      "part-seg-nano.pt": 9
+     },
+     "n_poses": 1,
+     "top_score": 0.8544,
+     "poses": [
+      {
+       "R": [
+        0.938306952,
+        -0.019477601,
+        0.345254524,
+        -0.342694483,
+        0.081205142,
+        0.935930669,
+        -0.046266127,
+        -0.996507074,
+        0.069520483
+       ],
+       "t": [
+        0.134784293,
+        -0.0734562,
+        0.713140147
+       ],
+       "score": 0.8544
+      }
+     ],
+     "peak_rss_mb": 739.5
+    }
+   ],
+   "errors": [],
+   "wall_s_min": 20.85,
+   "wall_s_median": 20.85,
+   "stages_s_min": {
+    "io": 0.05,
+    "setup": 0.306,
+    "segmenter": 17.311,
+    "register": 3.183
+   }
+  }
+ }
+}

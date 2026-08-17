@@ -1,0 +1,439 @@
+{
+ "schema_version": 1,
+ "timestamp_utc": "2026-08-17T12:51:02Z",
+ "git_commit": "261a6a4",
+ "argv": [
+  "--root",
+  ".",
+  "--split",
+  "test",
+  "--scenes",
+  "000001",
+  "000002",
+  "000015",
+  "--pick",
+  "--repeat",
+  "3",
+  "--seg-model",
+  "weights/part-seg-nano.pt",
+  "--extra-seg-model",
+  "",
+  "--imgsz",
+  "640",
+  "--out",
+  "results/bench/native_nano640.json",
+  "--note",
+  "x86 development machine, board profile, for comparison with the emulated and board records"
+ ],
+ "note": "x86 development machine, board profile, for comparison with the emulated and board records",
+ "config": {
+  "profile": "nano",
+  "threads": 4,
+  "cpu_only": true,
+  "root": ".",
+  "split": "test",
+  "pick": true,
+  "repeat": 3,
+  "workers": 1,
+  "seg_model": "part-seg-nano.pt",
+  "extra_seg_model": null,
+  "imgsz": 640
+ },
+ "host": {
+  "machine": "x86_64",
+  "kernel": "7.0.0-28-generic",
+  "cpu_model": "Intel(R) Core(TM) i5-14600K",
+  "cpu_count": 20,
+  "cpu_affinity": 20,
+  "total_ram_mb": 31804,
+  "cgroup": {
+   "cpu_quota": null,
+   "memory_limit_mb": null
+  },
+  "jetson": false,
+  "device_tree_model": null,
+  "nv_tegra_release": null,
+  "emulation_evidence": [],
+  "python": "3.12.3",
+  "versions": {
+   "torch": "2.13.0+cu130",
+   "open3d": "0.19.0",
+   "ultralytics": "8.4.120",
+   "cv2": "5.0.0",
+   "numpy": "2.5.2",
+   "scipy": "1.18.0",
+   "trimesh": null
+  },
+  "torch_cuda": false,
+  "cuda_device": null,
+  "platform_kind": "native"
+ },
+ "model_load_s": 2.888,
+ "peak_rss_mb": 1091.9,
+ "determinism": "Open3D RANSAC is stochastic (its OpenMP threads share one random engine), so repeats of one scene differ on one machine. Per-repeat poses are kept so the cross-machine tolerance can be judged against the same-machine spread.",
+ "scenes": {
+  "000001": {
+   "repeats": [
+    {
+     "wall_s": 1.013,
+     "stages_s": {
+      "io": 0.013,
+      "setup": 0.018,
+      "segmenter": 0.726,
+      "register": 0.256
+     },
+     "proposals": {
+      "part-seg-nano.pt": 9
+     },
+     "n_poses": 1,
+     "top_score": 0.8577,
+     "poses": [
+      {
+       "R": [
+        0.938473692,
+        -0.019538648,
+        0.34479758,
+        -0.34221494,
+        0.081624443,
+        0.936069648,
+        -0.046433446,
+        -0.996471621,
+        0.069915975
+       ],
+       "t": [
+        0.134789415,
+        -0.073444348,
+        0.713131872
+       ],
+       "score": 0.8577
+      }
+     ],
+     "peak_rss_mb": 1076.8
+    },
+    {
+     "wall_s": 0.317,
+     "stages_s": {
+      "io": 0.011,
+      "setup": 0.018,
+      "segmenter": 0.039,
+      "register": 0.249
+     },
+     "proposals": {
+      "part-seg-nano.pt": 9
+     },
+     "n_poses": 1,
+     "top_score": 0.8557,
+     "poses": [
+      {
+       "R": [
+        0.938445116,
+        -0.019562935,
+        0.34487397,
+        -0.342293474,
+        0.081537794,
+        0.936048485,
+        -0.046432119,
+        -0.996478238,
+        0.069822479
+       ],
+       "t": [
+        0.13478753,
+        -0.07344706,
+        0.713132742
+       ],
+       "score": 0.8557
+      }
+     ],
+     "peak_rss_mb": 1091.6
+    },
+    {
+     "wall_s": 0.293,
+     "stages_s": {
+      "io": 0.011,
+      "setup": 0.016,
+      "segmenter": 0.032,
+      "register": 0.234
+     },
+     "proposals": {
+      "part-seg-nano.pt": 9
+     },
+     "n_poses": 1,
+     "top_score": 0.8563,
+     "poses": [
+      {
+       "R": [
+        0.938451247,
+        -0.01955829,
+        0.344857551,
+        -0.342273634,
+        0.081619068,
+        0.936048657,
+        -0.046454463,
+        -0.996471676,
+        0.06990123
+       ],
+       "t": [
+        0.134802143,
+        -0.073443062,
+        0.713131095
+       ],
+       "score": 0.8563
+      }
+     ],
+     "peak_rss_mb": 1091.9
+    }
+   ],
+   "errors": [],
+   "wall_s_min": 0.293,
+   "wall_s_median": 0.317,
+   "stages_s_min": {
+    "io": 0.011,
+    "setup": 0.016,
+    "segmenter": 0.032,
+    "register": 0.234
+   }
+  },
+  "000002": {
+   "repeats": [
+    {
+     "wall_s": 0.32,
+     "stages_s": {
+      "io": 0.011,
+      "setup": 0.016,
+      "segmenter": 0.034,
+      "register": 0.26
+     },
+     "proposals": {
+      "part-seg-nano.pt": 5
+     },
+     "n_poses": 1,
+     "top_score": 0.9305,
+     "poses": [
+      {
+       "R": [
+        0.900663972,
+        0.069064674,
+        0.428992402,
+        0.399573974,
+        0.25625524,
+        -0.880155606,
+        -0.170719211,
+        0.964138643,
+        0.203203416
+       ],
+       "t": [
+        0.11603288,
+        -0.071785867,
+        0.708112759
+       ],
+       "score": 0.9305
+      }
+     ],
+     "peak_rss_mb": 1091.9
+    },
+    {
+     "wall_s": 0.295,
+     "stages_s": {
+      "io": 0.011,
+      "setup": 0.016,
+      "segmenter": 0.031,
+      "register": 0.237
+     },
+     "proposals": {
+      "part-seg-nano.pt": 5
+     },
+     "n_poses": 1,
+     "top_score": 0.9305,
+     "poses": [
+      {
+       "R": [
+        0.900663972,
+        0.069064674,
+        0.428992402,
+        0.399573974,
+        0.25625524,
+        -0.880155606,
+        -0.170719211,
+        0.964138643,
+        0.203203416
+       ],
+       "t": [
+        0.11603288,
+        -0.071785867,
+        0.708112759
+       ],
+       "score": 0.9305
+      }
+     ],
+     "peak_rss_mb": 1091.9
+    },
+    {
+     "wall_s": 0.299,
+     "stages_s": {
+      "io": 0.011,
+      "setup": 0.016,
+      "segmenter": 0.034,
+      "register": 0.238
+     },
+     "proposals": {
+      "part-seg-nano.pt": 5
+     },
+     "n_poses": 1,
+     "top_score": 0.9305,
+     "poses": [
+      {
+       "R": [
+        0.900663972,
+        0.069064674,
+        0.428992402,
+        0.399573974,
+        0.25625524,
+        -0.880155606,
+        -0.170719211,
+        0.964138643,
+        0.203203416
+       ],
+       "t": [
+        0.11603288,
+        -0.071785867,
+        0.708112759
+       ],
+       "score": 0.9305
+      }
+     ],
+     "peak_rss_mb": 1091.9
+    }
+   ],
+   "errors": [],
+   "wall_s_min": 0.295,
+   "wall_s_median": 0.299,
+   "stages_s_min": {
+    "io": 0.011,
+    "setup": 0.016,
+    "segmenter": 0.031,
+    "register": 0.237
+   }
+  },
+  "000015": {
+   "repeats": [
+    {
+     "wall_s": 0.308,
+     "stages_s": {
+      "io": 0.012,
+      "setup": 0.016,
+      "segmenter": 0.038,
+      "register": 0.242
+     },
+     "proposals": {
+      "part-seg-nano.pt": 8
+     },
+     "n_poses": 1,
+     "top_score": 0.9472,
+     "poses": [
+      {
+       "R": [
+        0.515269166,
+        0.221595109,
+        -0.827884831,
+        -0.835808024,
+        -0.083700361,
+        -0.542604089,
+        -0.189532672,
+        0.971539941,
+        0.142082754
+       ],
+       "t": [
+        0.160635975,
+        0.005263667,
+        0.711419375
+       ],
+       "score": 0.9472
+      }
+     ],
+     "peak_rss_mb": 1091.9
+    },
+    {
+     "wall_s": 0.305,
+     "stages_s": {
+      "io": 0.011,
+      "setup": 0.016,
+      "segmenter": 0.036,
+      "register": 0.242
+     },
+     "proposals": {
+      "part-seg-nano.pt": 8
+     },
+     "n_poses": 1,
+     "top_score": 0.9482,
+     "poses": [
+      {
+       "R": [
+        0.515566862,
+        0.221596558,
+        -0.827699085,
+        -0.835612734,
+        -0.083699931,
+        -0.542904855,
+        -0.189584204,
+        0.971539648,
+        0.142015995
+       ],
+       "t": [
+        0.160639456,
+        0.005256347,
+        0.711417535
+       ],
+       "score": 0.9482
+      }
+     ],
+     "peak_rss_mb": 1091.9
+    },
+    {
+     "wall_s": 0.535,
+     "stages_s": {
+      "io": 0.012,
+      "setup": 0.016,
+      "segmenter": 0.038,
+      "register": 0.469
+     },
+     "proposals": {
+      "part-seg-nano.pt": 8
+     },
+     "n_poses": 1,
+     "top_score": 0.9472,
+     "poses": [
+      {
+       "R": [
+        0.515269166,
+        0.221595109,
+        -0.827884831,
+        -0.835808024,
+        -0.083700361,
+        -0.542604089,
+        -0.189532672,
+        0.971539941,
+        0.142082754
+       ],
+       "t": [
+        0.160635975,
+        0.005263667,
+        0.711419375
+       ],
+       "score": 0.9472
+      }
+     ],
+     "peak_rss_mb": 1091.9
+    }
+   ],
+   "errors": [],
+   "wall_s_min": 0.305,
+   "wall_s_median": 0.308,
+   "stages_s_min": {
+    "io": 0.011,
+    "setup": 0.016,
+    "segmenter": 0.036,
+    "register": 0.242
+   }
+  }
+ }
+}

@@ -190,8 +190,12 @@ the profile above only changes how much slack it has.
   and the GPU disabled. A Cortex-A57 is several times slower per core than a
   pinned P-core and the Nano's software stack is different (Python 3.8,
   torch 2.4.1, Open3D 0.18), so read the latency column as a *lower bound* on
-  board time and the memory column as the closest available estimate, not as
-  a board measurement. The qemu-emulated arm64 run brackets it from the
+  board time. The memory column is an x86 estimate on x86 library versions
+  (torch 2.13, open3d 0.19, numpy 2.5); the emulated aarch64 run in
+  `results/bench/emulated_nano640.json` carries the board's own versions
+  (torch 2.4.1, open3d 0.18, numpy 1.24) and peaks at 0.74 GB against
+  1.09 GB for the same profile on x86, so that is the closer estimate of the
+  two — still not a board measurement. The qemu-emulated arm64 run brackets it from the
   other side and is not a timing measurement either. The accuracy rows
   should carry across — same weights, same code — but only within the same
   ±0.015 band these single-segmenter rows carry, since a different Open3D

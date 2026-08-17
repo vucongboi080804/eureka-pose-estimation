@@ -209,10 +209,20 @@ came back 0.03 mm and 0.28 deg from `submission["000001"][4]`, and test/000015
 ### 8. Benchmark, and compare against the emulated baseline
 
 The board is the only place the timing question gets a real answer. The
-emulated numbers below are *not* a board estimate — measured here, qemu-user
-inflates one pick 172x overall and does it unevenly (307x on the segmenter,
-13x on registration), so the board run replaces them rather than confirming
-them.
+emulated numbers are *not* a board estimate — on the shipped board profile
+qemu-user inflates one pick 71x overall and does it very unevenly: **541x on
+the segmenter against 14x on registration**. Note what happens when the
+weight changes: on the old desktop profile the same comparison read 172x
+overall / 307x segmenter, and swapping in the 9x smaller nano model *halved*
+the overall ratio while nearly *doubling* the segmenter's, because at 0.3 s
+native there is no longer a heavy registration stage for the segmenter to
+hide behind. A single scaling factor carried from one profile to another
+would be wrong twice over. The board run replaces these numbers; it does not
+confirm them.
+
+The committed baseline is `results/bench/emulated_nano640.json` (board
+limits, one scene) against `results/bench/native_nano640.json` (this machine,
+three scenes, three repeats), both on `part-seg-nano.pt` at 640.
 
 ```bash
 # on the board, quiet, jetson_clocks on:
@@ -277,6 +287,7 @@ appetite is dominated by the registration working set, not by the network:
 | Segmenter weights on disk | 56 MB + 45 MB | `weights/` |
 | Segmenter activations | scale with `imgsz`<sup>2</sup> | `src/detect_seg.py:masks_from_model` |
 | Board profile (one segmenter, 640), 4 cores pinned | 1.31 GB peak RSS | `analysis/nano_profile.md` (x86, 4 pinned cores) |
+| **Same profile on the aarch64 stack** | **0.74 GB peak RSS** | `results/bench/emulated_nano640.json` — emulated, but the board's own torch 2.4.1 / open3d 0.18 / numpy 1.24 rather than x86's much newer set, so this is the closer estimate |
 | The service holding that profile across frames | 0.95 GB after load, 1.71 GB RSS | measured here (x86, `/healthz` after two frames) |
 | The same on the Nano | *unmeasured — the board answers this* | |
 
@@ -502,20 +513,24 @@ here because it cannot be tested off-board.
   against a native record, both at the board profile:
 
   ```
-  scene    qemu s  x86_64 s  ratio   poses  max mm  max deg  d score  output
-  000001   108.4   0.6       171.8x  1/1    0.02    0.07     0.001    ok
+  scene    qemu s  x86_64 s  ratio  poses  max mm  max deg  d score  output
+  000001   20.9    0.3       71.2x  1/1    0.02    0.04     0.003    ok
 
-  OUTPUT : AGREES on all 1 scene -- worst 0.02 mm / 0.07 deg (tolerance 2 mm / 2 deg)
-  NOISE  : same machine, repeated -- worst 0.00 mm / 0.00 deg
-  STAGES : io 4x, setup 14x, segmenter 307x, register 13x
-  SPEED  : qemu takes 171.8x x86_64
+  OUTPUT : AGREES on all 1 scene -- worst 0.02 mm / 0.04 deg (tolerance 2 mm / 2 deg)
+  NOISE  : same machine, repeated -- worst 0.01 mm / 0.01 deg
+  STAGES : io 5x, setup 19x, segmenter 541x, register 14x
+  SPEED  : qemu takes 71.2x x86_64
   ```
 
-  Read the memory, not the time: **the aarch64 stack is lighter than the x86
-  one** (878 MB against 1.18 GB), which is the one emulated number that
-  transfers, and it leaves the unit's `MemoryMax=2600M` a wide margin. The
-  time does not transfer at all — a 307x segmenter and a 13x registration
-  cannot be scaled by one factor.
+  **The result is the agreement, not the speed.** The aarch64 build returns
+  the same pose as x86 to 0.02 mm, which is the repeat-to-repeat noise of a
+  single machine — so the port is proven and the cross-machine delta is
+  indistinguishable from RANSAC. Memory is the one magnitude worth carrying:
+  the aarch64 stack peaks at **0.74 GB against x86's 1.09 GB on the same
+  profile**, and it is the board's own library versions, so the unit's
+  `MemoryMax=2600M` has more headroom than the x86 estimate suggested. Time
+  transfers not at all — 541x on the segmenter against 14x on registration
+  cannot be one factor.
 
 - **Not verified — the board answers these, and the runbook is built so it
   can.** Wall-clock and memory on the actual Nano; the CUDA-10.2 torch path
