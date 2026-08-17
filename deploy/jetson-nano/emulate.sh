@@ -19,7 +19,8 @@
 # run bench.py on the board for the time.
 #
 # Environment overrides: IMAGE CPUS MEMORY MEMORY_SWAP DOCKER_USER RELEASE
-#                        SPLIT SCENES PICK REPEAT PROFILE EXTRA_SEG IMGSZ
+#                        SPLIT SCENES PICK REPEAT PROFILE SEG_MODEL
+#                        EXTRA_SEG IMGSZ
 #                        OUT_DIR OUT_NAME NOTE
 set -euo pipefail
 
@@ -39,8 +40,9 @@ PROFILE="${PROFILE:-nano}"
 # baseline has to measure: one segmenter at 640. Anything else and the board
 # run it is diffed against is answering a different question -- which
 # compare_bench.py will say, loudly, rather than compare regardless.
-# EXTRA_SEG=/app/weights/part-seg-synthetic.pt IMGSZ=960 measures the shipped
-# desktop configuration instead.
+# SEG_MODEL=/app/weights/part-seg.pt EXTRA_SEG=/app/weights/part-seg-synthetic.pt
+# IMGSZ=960 measures the shipped desktop configuration instead.
+SEG_MODEL="${SEG_MODEL:-/app/weights/part-seg-nano.pt}"
 EXTRA_SEG="${EXTRA_SEG:-}"
 IMGSZ="${IMGSZ:-640}"
 OUT_DIR="${OUT_DIR:-$ROOT/out_bench}"
@@ -68,6 +70,7 @@ DOCKER_ARGS=(
     deploy/jetson-nano/bench.py
     --root /data --split "$SPLIT" --scenes $SCENES
     --profile "$PROFILE" --repeat "$REPEAT" $PICK_FLAG
+    --seg-model "$SEG_MODEL"
     --extra-seg-model "$EXTRA_SEG" --imgsz "$IMGSZ"
     --note "$NOTE" --out "/out/$OUT_NAME"
 )
@@ -77,7 +80,7 @@ if [ "${1:-}" = "--check" ]; then
     printf '  docker'; printf ' %q' "${DOCKER_ARGS[@]}"; printf '\n\n'
     echo "image     $IMAGE   (built by deploy/jetson-nano/Dockerfile; do not rebuild to change bench.py -- it is mounted)"
     echo "limits    $CPUS CPUs, $MEMORY RAM, $MEMORY_SWAP RAM+swap, no network"
-    echo "profile   ${EXTRA_SEG:-one segmenter}, imgsz $IMGSZ  (config.nano.json's)"
+    echo "profile   $(basename "$SEG_MODEL")${EXTRA_SEG:+ + $(basename "$EXTRA_SEG")}, imgsz $IMGSZ  (config.nano.json's)"
     echo "release   $RELEASE -> /data (read-only)"
     echo "output    $OUT_DIR/$OUT_NAME"
     echo

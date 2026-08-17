@@ -219,14 +219,19 @@ them.
 mkdir -p out_bench
 .venv/bin/python deploy/jetson-nano/bench.py --root /path/to/release --split test \
     --scenes 000001 000002 000015 --pick --repeat 3 \
-    --extra-seg-model "" --imgsz 640 --out out_bench/board.json \
+    --seg-model weights/part-seg-nano.pt --extra-seg-model "" --imgsz 640 \
+    --out out_bench/board.json \
     --note "board, 2 GB swap, no desktop session"
 ```
 
 `--profile nano` is the default (4 threads, CPU only) and is what makes a
-desktop or emulated run comparable at all; `--extra-seg-model "" --imgsz 640`
-is the single-segmenter configuration `config.nano.json` actually runs
-(bench.py otherwise defaults to the shipped 960);
+desktop or emulated run comparable at all. The three weight arguments are not
+optional: `bench.py` defaults to the shipped desktop configuration
+(`part-seg.pt`, both segmenters, 960), so a run without them benches a
+27 M-parameter model while `config.nano.json` serves a 2.84 M one — and the
+difference would read as hardware when the board record is diffed against the
+emulated baseline. `--seg-model weights/part-seg-nano.pt --extra-seg-model ""
+--imgsz 640` is what the board actually runs.
 `--repeat 3` reports min and median, because RANSAC is stochastic. The
 record carries the host fingerprint, the pins, the config and the peak RSS
 next to the times — that is what makes two files comparable.
