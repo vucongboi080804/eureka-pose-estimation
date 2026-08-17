@@ -134,11 +134,14 @@ Four short studies in `analysis/`, each regenerable by a script in
   110 of the 112 attainable. (Predicting every pose twice at half score
   would lift AR by ~0.02; deliberately not done — it games a label defect
   and would halve precision.) The 2 real misses (3 in the previous draw)
-  are half-turn flips about the stem axis where the depth channel cannot
-  tell — the distinguishing boss occluded, or flattened by the sensor:
-  the flip verifies 0.69–0.72 vs 0.19–0.36 for the truth; both segmenters
-  proposed each of them (IoU ≥ 0.79) — zero segmenter misses, zero
-  mislocalisations. An RGB hole-consistency cue is the identified fix.
+  are half-turn flips about the stem axis: in one the sensor flattens the
+  distinguishing boss so the depth verdict genuinely prefers the flip
+  (0.72 vs 0.19), in the other the verdict prefers the truth but RANSAC
+  never lands in that basin. Both segmenters proposed each of them
+  (IoU ≥ 0.79) — zero segmenter misses, zero mislocalisations. The fix for
+  the first is an RGB hole-consistency cue (a predicted through-hole
+  covering part-coloured surface at or in front of its own rim plane is
+  impossible); for the second, more restarts from the mask centroid.
   Hole claim confirmed: matched MSSD median 1.7 mm with both large holes
   visible (100 % < 4 mm, n 80) vs 2.8 mm with none (82 % < 4 mm, n 22).
   All 37 false positives are wrong registrations of real parts (11
