@@ -5,17 +5,18 @@ train scenes + one trained only on synthetic renders of the CAD) propose
 masks; classical RGB-D geometry (FPFH/RANSAC → ICP → flip disambiguation →
 depth-map verification → hole-centre polish) estimates and *verifies* every
 pose; `score` = segmenter confidence × verification. Honest leave-scenes-out
-CV on train: **AR 0.844 (0.84 ± 0.005 across runs), top-1 1.000**,
-precision 0.75 at 10 mm; the GT-mask baseline is 0.832, and 5 of the 8
-remaining misses are duplicate ground-truth labels (`analysis/`). The 40
-test scenes take ≈ 135 s on one desktop GPU, 160 s CPU-only; pick mode
-(one confident pose per scene) 0.7 s. Clone-and-run: `./setup.sh` then
-`./run_all.sh <release>`; a Docker image and an air-gapped recipe are in
-`deploy/`.
+CV on train: **AR 0.851, top-1 1.000**, precision 0.77 at 10 mm, against a
+GT-mask baseline of 0.848. At the 10 mm threshold it recovers **112 of the
+117 required instances — every one the metric can reach**: the five it
+misses are duplicate ground-truth labels that no single-pose submission can
+claim (`analysis/failure_analysis.md`). The 40 test scenes take ≈ 139 s on
+one desktop GPU, ~165 s CPU-only; pick mode (one confident pose per scene)
+0.7 s. Clone-and-run: `./setup.sh` then `./run_all.sh <release>`; a Docker
+image, an air-gapped recipe and a Jetson pin set are in `deploy/`.
 
-`submission.json` was produced at commit `9ec4482` by
+`submission.json` was produced at commit `SUBMISSION_COMMIT` by
 `scripts/run_pipeline.py --split test --seg-model weights/part-seg.pt
---extra-seg-model weights/part-seg-synthetic.pt` (391 predictions over 40
+--extra-seg-model weights/part-seg-synthetic.pt` (363 predictions over 40
 scenes); `overlays_test/` by the released `visualize.py` on those poses —
 exactly what `run_all.sh` does.
 
@@ -54,6 +55,14 @@ pose refinement, dominates the error budget.)
    - *Flip disambiguation*: the part is nearly 180°-symmetric about its own
      axes, so every converged pose spawns three flipped rivals (π about
      X/Y/Z through the centroid), each re-refined.
+   - *RGB hole cue* (`src/verify.py`): the depth verdict only judges
+     pixels where the posed model has surface, so a predicted through-hole
+     is its blind spot — and that is exactly where a half-turn about the
+     stem hides. Solid part-coloured surface at or in front of a predicted
+     hole's own rim plane is material the pose claims is empty; that
+     objection re-ranks the rivals before the shortlist. The sign matters:
+     punishing colour merely *near* the rim depth is worse than nothing,
+     because a real hole frames whatever lies a few millimetres below it.
    - *Depth-map verification* (`src/verify.py`): render-free z-buffer test
      of the posed model against the observed depth. Model pixels sitting
      *in front of* the measured surface are physically impossible
@@ -90,11 +99,11 @@ pose refinement, dominates the error budget.)
 
 | Setting                                        | 2 mm  | 4 mm  | 6 mm  | 8 mm  | 10 mm | AR    | top-1 |
 | ---------------------------------------------- | ----- | ----- | ----- | ----- | ----- | ----- | ----- |
-| GT masks → registration (one proposal/instance) | 0.436 | 0.872 | 0.940 | 0.940 | 0.974 | 0.832 | 1.000 |
+| GT masks → registration (one proposal/instance) | 0.453 | 0.872 | 0.957 | 0.966 | 0.991 | 0.848 | 1.000 |
 | Geometric detector, no training                | 0.368 | 0.786 | 0.812 | 0.821 | 0.829 | 0.723 | 0.950 |
 | Single segmenter (YOLO11l, conf 0.4)           | 0.496 | 0.855 | 0.906 | 0.906 | 0.915 | 0.815 | 1.000 |
-| **Two-segmenter ensemble (submitted)**         | 0.521 | 0.897 | 0.932 | 0.932 | 0.940 | **0.844** | **1.000** |
-| ↳ precision of the submitted config            | 0.381 | 0.677 | 0.732 | 0.741 | 0.748 |       |       |
+| **Two-segmenter ensemble (submitted)**         | 0.521 | 0.889 | 0.940 | 0.949 | 0.957 | **0.851** | **1.000** |
+| ↳ precision of the submitted config            | 0.381 | 0.675 | 0.743 | 0.760 | 0.767 |       |       |
 
 Recall (last row: precision) at each MSSD threshold. Learned-mask rows are
 honest: they stitch four leave-scenes-out folds, so every scene is predicted
@@ -104,21 +113,23 @@ by a model that never saw it. Every row is a file in `results/`
 
 *Run-to-run variance.* Open3D's RANSAC is stochastic (its OpenMP threads
 share one random engine, so a seed does not make it bit-reproducible).
-A second draw of the submitted configuration gives AR 0.839
-(`train_ensemble_run2.json`); without the own-mask check three draws gave
-0.839 / 0.836 / 0.836 (`ablation_no_own_mask*.json`). Top-1 is 1.000 in
-every draw. Read the headline as AR 0.84 ± 0.005; deltas inside that band
-are noise.
+Both draws of the submitted configuration give AR 0.851 with the same
+per-instance result (`train_ensemble_run1.json`, `train_ensemble_run2.json`);
+draws without the hole cue span 0.836–0.844 (`ablation_no_hole_cue*.json`,
+`ablation_no_own_mask*.json`). Deltas under ±0.005 are noise; this one is
+not, and it is the same two instances in both draws.
 
-*Why the ensemble beats the GT-mask row.* Two segmenters × ~2 proposals
-per instance means several independent RANSAC/ICP registrations per
-instance where the GT-mask run gets one proposal; predicted masks also
+*Why the ensemble edges past the GT-mask row.* Two segmenters × ~2
+proposals per instance means several independent RANSAC/ICP registrations
+per instance where the GT-mask run gets one proposal; predicted masks also
 avoid the GT masks' occlusion-boundary pixels, and the two models miss
-different instances.
-The price is precision (0.75 at 10 mm): unmatched low-score proposals cost
-precision but never AR or top-1. A deployment trades recall for precision
-by thresholding `score` (≥ 0.4: precision 0.86 at AR 0.84; ≥ 0.6: 0.95 at
-0.78; ≥ 0.7: 1.00 at 0.71; top-1 stays 1.000 up to 0.8) —
+different instances. The GT-mask row is nevertheless the more accurate one
+at 10 mm (0.991): registering each labelled mask separately, it claims both
+copies of a duplicate annotation, which a de-duplicated submission cannot.
+The price of the ensemble is precision (0.77 at 10 mm): unmatched low-score
+proposals cost precision but never AR or top-1. A deployment trades recall
+for precision by thresholding `score` (≥ 0.4: precision 0.86 at AR 0.84;
+≥ 0.6: 0.96 at 0.79; ≥ 0.7: 0.99 at 0.72; top-1 stays 1.000 up to 0.8) —
 `analysis/score_calibration.md`.
 
 ## Analysis (what the remaining error is, what each stage buys)
@@ -210,7 +221,7 @@ Four short studies in `analysis/`, each regenerable by a script in
 
   | Tier | Needs | AR |
   | ---- | ----- | -- |
-  | Real-trained segmenter alone (YOLO11l) | this environment | 0.815 (0.844 in the submitted ensemble) |
+  | Real-trained segmenter alone (YOLO11l) | this environment | 0.815 (0.851 in the submitted ensemble) |
   | **Synthetic-only segmenter** (`scripts/render_synthetic.py`) | nothing real: trained purely on domain-randomised CAD renders | 0.814 (top-1 1.000) zero-shot on the real scenes |
   | Geometric detector, colour gate | the part's colour | 0.723 |
   | Geometric detector, depth foreground (`foreground="depth"`, Python API) | nothing but depth | recovers most instances, colour-blind |
@@ -255,8 +266,7 @@ under qemu emulation; timing on the board not measured).
 Accuracy-wise the measured bottleneck is the sensor, not the algorithm — an
 industrial structured-light camera (30–100 µm noise) would let this same
 registration stack settle near its ~0.3–0.5 mm verification floor without
-algorithmic changes. Next upgrades: the RGB hole cue for the depth-blind
-flips, in-hand verification for assembly-grade accuracy, a wrist-mounted
+algorithmic changes. Next upgrades: in-hand verification for assembly-grade accuracy, a wrist-mounted
 second viewpoint for steeply leaning parts, and site-collected scenes
 (self-labelled by the gripper's success sensor) as a permanent regression
 set.
@@ -267,7 +277,7 @@ set.
 src/           scene_io (loading, back-projection) · model_cloud (CAD
                sampling, FPFH, hole discovery) · register (RANSAC, ICP,
                flips, grid, hole-pair proposals) · verify (depth-map
-               verification) · edge_refine (polish) · detect (geometric
+               verification, RGB hole cue) · edge_refine (polish) · detect (geometric
                detector, colour gate, NMS) · detect_seg (learned masks +
                hybrid fallback) · surface_patches
 scripts/       run_pipeline (full pipeline over a split, --pick) ·
