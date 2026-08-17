@@ -83,11 +83,24 @@ half the segmenter time and RAM).
 ## Verified here vs. not
 
 - Verified: every pin resolves to a `cp38` aarch64 wheel compatible with
-  glibc 2.27 (pip download from x86); the pipeline runs on Python 3.8 with
-  open3d 0.18 (x86 container, poses identical to the submission); the arm64
-  image builds and runs the pipeline under qemu emulation
-  (see the log lines quoted at the end of this file).
+  glibc 2.27 (`pip download --platform manylinux_2_27_aarch64
+  --python-version 3.8 --only-binary=:all:` from x86); the pipeline runs on
+  Python 3.8 with open3d 0.18 (x86 container: test/000001 and 000002 give
+  the same 9 and 5 poses as the submission); the arm64 image builds and
+  runs the real pipeline under qemu-user emulation on the x86 machine:
+
+  ```
+  $ docker run --rm --network none --platform linux/arm64 \
+        -v <release>:/data:ro -v out:/out --entrypoint python pose-est:nano \
+        scripts/run_pipeline.py --root /data --split test --scenes 000001 \
+        --workers 1 --pick --seg-model weights/part-seg.pt \
+        --extra-seg-model weights/part-seg-synthetic.pt --out /out/nano_pick.json
+  arch aarch64  py 3.8.0  torch 2.4.1  open3d 0.18.0  cv2 4.10.0  ultralytics 8.4.120
+  000001   1 found in 259.5s  scores [0.84]
+  ```
+
+  The picked pose is the one the x86 run picks: 0.04 mm and 0.07° apart,
+  score 0.8385 vs 0.8324. **The 259.5 s is emulation overhead**
+  (~170× the 1.5 s the same pick takes natively), not a board estimate.
 - Not verified: wall-clock on the actual board, the CUDA torch path on
   JetPack 4.6, memory headroom under 4 GB with the desktop stack running.
-
-<!-- emulation-log -->
