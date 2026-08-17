@@ -14,7 +14,7 @@ one desktop GPU, ~165 s CPU-only; pick mode (one confident pose per scene)
 0.7 s. Clone-and-run: `./setup.sh` then `./run_all.sh <release>`; a Docker
 image, an air-gapped recipe and a Jetson pin set are in `deploy/`.
 
-`submission.json` was produced at commit `SUBMISSION_COMMIT` by
+`submission.json` was produced at commit `d2ef188` by
 `scripts/run_pipeline.py --split test --seg-model weights/part-seg.pt
 --extra-seg-model weights/part-seg-synthetic.pt` (363 predictions over 40
 scenes); `overlays_test/` by the released `visualize.py` on those poses —
