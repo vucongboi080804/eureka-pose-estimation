@@ -61,8 +61,14 @@ would, and against the lock file rather than the loose one:
 ```bash
 docker run --rm --platform linux/arm64 -v "$PWD/wheelhouse-nano:/wh" \
     --entrypoint pip pose-est:nano \
-    download -r deploy/jetson-nano/requirements-jetson-nano.lock.txt -d /wh
+    download -r deploy/jetson-nano/requirements-jetson-nano.lock.txt pip -d /wh
 ```
+
+The trailing `pip` is not decoration. `python3.8 -m venv` on Ubuntu 18.04
+aarch64 seeds the environment with **pip 9.0.1**, which predates PEP 600 and
+rejects two wheels in this set outright — polars' `manylinux_2_24` tag and
+torchvision's bare `linux_aarch64` one. So the board installs pip from the
+wheelhouse first, then everything else.
 
 Do **not** reach for `pip download --platform manylinux2014_aarch64` on an
 x86 host. `--platform` is a wheel-tag filter, not a description of the
@@ -82,6 +88,7 @@ Carry `wheelhouse-nano/` over with the repo and `weights/`, then on the board:
 sudo install -d -o pose -g pose /opt/pose-estimation     # see step 5 for the user
 cd /opt/pose-estimation                                  # repo unpacked here
 python3.8 -m venv .venv
+.venv/bin/pip install --no-index --find-links wheelhouse-nano pip
 .venv/bin/pip install --no-index --find-links wheelhouse-nano \
     -r deploy/jetson-nano/requirements-jetson-nano.lock.txt
 ```

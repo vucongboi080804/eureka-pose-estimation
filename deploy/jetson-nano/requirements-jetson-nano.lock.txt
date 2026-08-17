@@ -8,7 +8,16 @@
 #
 #   docker run --rm --platform linux/arm64 -v "$PWD/wheelhouse-nano:/wh" \
 #       --entrypoint pip pose-est:nano \
-#       download -r deploy/jetson-nano/requirements-jetson-nano.lock.txt -d /wh
+#       download -r deploy/jetson-nano/requirements-jetson-nano.lock.txt pip -d /wh
+#
+# Note the trailing `pip`. On Ubuntu 18.04 aarch64, `python3.8 -m venv` seeds
+# the environment with pip 9.0.1, which predates PEP 600 and refuses two
+# wheels in this set outright -- polars' manylinux_2_24 tag and torchvision's
+# bare linux_aarch64 one. An air-gapped board must therefore install pip from
+# the wheelhouse before anything else:
+#
+#   .venv/bin/pip install --no-index --find-links wheelhouse-nano pip
+#   .venv/bin/pip install --no-index --find-links wheelhouse-nano -r <this file>
 #
 # Do NOT reach for `pip download --platform manylinux2014_aarch64` on an x86
 # host. --platform is a wheel-tag filter, not a description of the target: it
