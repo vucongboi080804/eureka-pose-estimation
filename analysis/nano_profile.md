@@ -190,7 +190,14 @@ the profile above only changes how much slack it has.
   and the GPU disabled. A Cortex-A57 is several times slower per core than a
   pinned P-core and the Nano's software stack is different (Python 3.8,
   torch 2.4.1, Open3D 0.18), so read the latency column as a *lower bound* on
-  board time. The memory column is an x86 estimate on x86 library versions
+  board time. **Both are now superseded for this profile**: the board itself
+  measures 2.6-2.7 s per pick and 624 MB peak
+  (`results/bench/board_nano640.json`), against the 5.63 s and 1.31 GB this
+  table estimates from x86 and the 20.9 s and 740 MB the emulation estimated.
+  The rows below stay as the cross-configuration comparison they were built
+  for — the *relative* costs of imgsz and of the second segmenter — but the
+  absolute latency and memory columns should be read as x86 figures, not as
+  board ones. The memory column is an x86 estimate on x86 library versions
   (torch 2.13, open3d 0.19, numpy 2.5); the emulated aarch64 run in
   `results/bench/emulated_nano640.json` carries the board's own versions
   (torch 2.4.1, open3d 0.18, numpy 1.24) and peaks at 0.74 GB against

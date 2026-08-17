@@ -289,7 +289,7 @@ appetite is dominated by the registration working set, not by the network:
 | Board profile (one segmenter, 640), 4 cores pinned | 1.31 GB peak RSS | `analysis/nano_profile.md` (x86, 4 pinned cores) |
 | **Same profile on the aarch64 stack** | **0.74 GB peak RSS** | `results/bench/emulated_nano640.json` — emulated, but the board's own torch 2.4.1 / open3d 0.18 / numpy 1.24 rather than x86's much newer set, so this is the closer estimate |
 | The service holding that profile across frames | 0.95 GB after load, 1.71 GB RSS | measured here (x86, `/healthz` after two frames) |
-| The same on the Nano | *unmeasured — the board answers this* | |
+| **The same on the Nano, measured** | **624 MB peak RSS** | `results/bench/board_nano640.json` — real hardware, Docker, MAXN |
 
 **Why one worker.** One worker already needs ~1.6 GB before the desktop,
 the camera buffers and the page cache; two would swap, and swapping to an SD
@@ -532,10 +532,42 @@ here because it cannot be tested off-board.
   transfers not at all — 541x on the segmenter against 14x on registration
   cannot be one factor.
 
-- **Not verified — the board answers these, and the runbook is built so it
-  can.** Wall-clock and memory on the actual Nano; the CUDA-10.2 torch path
-  on JetPack 4.6; memory headroom inside 4 GB with the desktop session
-  running; the unit under the board's systemd 237 and cgroup v1, where
+- **Verified on the board.** A Jetson Nano 4 GB developer kit, JetPack 4.6
+  (L4T R32.7.6), Docker 20.10.21, MAXN, headless. The aarch64 image was
+  carried over as a `docker save | ssh docker load` (570 MB compressed, 2 min
+  10 s over a Tailscale link) and ran natively — no emulation, `torch 2.4.1 /
+  open3d 0.18.0 / cv2 4.10.0 / ultralytics 8.4.120 / numpy 1.24.4` on CPython
+  3.8.0, `torch.cuda.is_available()` False as expected on the PyPI wheel.
+  Three scenes, three repeats, board profile:
+
+  ```
+  scene    board s  x86_64 s  ratio  poses  max mm  max deg  output
+  000001   2.6      0.3       9.0x   1/1    0.02    0.04     ok
+  000002   2.7      0.3       9.1x   1/1    0.04    0.04     ok
+  000015   2.7      0.3       8.8x   1/1    0.04    0.14     ok
+
+  OUTPUT : AGREES on all 3 scenes -- worst 0.04 mm / 0.14 deg (tolerance 2 mm / 2 deg)
+  STAGES : io 4x, setup 11x, segmenter 25x, register 7x
+  SPEED  : board takes 9.0x x86_64
+  ```
+
+  **A pick is 2.6–2.7 s and peaks at 624 MB**, with a one-off 23.6 s model
+  load at start. That is inside the 4–8 s production cycle this runbook
+  designs against, on a headless $99 board with no GPU inference, and it
+  leaves the unit's `MemoryMax=2600M` a factor of four.
+
+  Both emulated predictions can now be scored, which is the point of having
+  made them: **time was 7.6x pessimistic** (qemu said 20.9 s for the pick
+  that takes 2.7 s) and **memory was 19 % over** (740 MB against 624 MB) —
+  so the emulated column was the closer of the two estimates, as claimed,
+  and the emulated *time* was an upper bound rather than an estimate, also
+  as claimed. The per-stage ratios collapse from 541x/14x under qemu to
+  25x/7x on the board.
+
+- **Not verified — still open.** The CUDA-10.2 torch path on JetPack 4.6;
+  memory headroom with a desktop session running (the board was measured
+  headless); the systemd unit under the board's systemd 237 and cgroup v1,
+  where
   `MemoryMax` becomes `memory.limit_in_bytes` — `systemd-analyze verify`
   here (on a newer systemd) reports nothing against the unit except that
   `/opt/pose-estimation/.venv/bin/python` does not exist on a development
