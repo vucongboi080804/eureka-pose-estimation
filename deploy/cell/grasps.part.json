@@ -1,0 +1,285 @@
+{
+ "format": "cell-grasps/1.0",
+ "part": "3d_model.ply",
+ "measured_from": "model/3d_model.ply",
+ "frame": "object",
+ "units": "m",
+ "conventions": {
+  "pose": "T_object_grasp: position and R place the grasp frame in the CAD/object frame. The robot commands T_base_grasp = T_base_camera @ T_camera_object @ T_object_grasp.",
+  "origin": "where the tool's TCP must be at contact (suction: the cup face on the part; parallel: mid-way between the closed jaws, at mid plate thickness)",
+  "approach": "unit direction the tool travels as it closes on the part; equal to the grasp frame's +Z (third column of R)",
+  "close_axis": "parallel jaws translate along +/- this axis; equal to the grasp frame's +X (first column of R). For suction it only fixes the tool roll.",
+  "approach_m": "free path the tool needs along -approach before contact; the length of the clearance cylinder",
+  "retreat_m": "lift back along -approach after the grasp closes",
+  "tool_radius_m": "radius of the tool envelope near the tip; the radius of the clearance cylinder",
+  "patch_radius_m": "suction only: flat material the cup needs, radius",
+  "opening_width_m": "parallel only: jaw separation at contact"
+ },
+ "measurements": {
+  "note": "every number below was measured from measured_from, not taken from a drawing; see the cell-integration report",
+  "bounding_box_m": [
+   0.07,
+   0.023,
+   0.045
+  ],
+  "plate_normal_object_axis": "y",
+  "plate_top_y_m": 0.0005,
+  "plate_bottom_y_m": -0.0075,
+  "plate_thickness_m": 0.008,
+  "crossbar_extent_x_m": [
+   -0.0371,
+   0.0329
+  ],
+  "crossbar_extent_z_m": [
+   -0.0171,
+   0.0029
+  ],
+  "stem_extent_x_m": [
+   -0.0096,
+   0.0054
+  ],
+  "stem_extent_z_m": [
+   0.0029,
+   0.0279
+  ],
+  "boss_extent_x_m": [
+   0.0165,
+   0.0293
+  ],
+  "boss_extent_z_m": [
+   -0.0135,
+   -0.0007
+  ],
+  "boss_top_y_m": 0.0155,
+  "through_hole_centres_m": [
+   [
+    -0.02727,
+    0.0,
+    -0.00703
+   ],
+   [
+    -0.00243,
+    0.0,
+    -0.00691
+   ]
+  ],
+  "through_hole_radii_m": [
+   0.00628,
+   0.00633
+  ],
+  "largest_flat_circle_top_m": 0.00664,
+  "largest_flat_circle_bottom_m": 0.01025
+ },
+ "grasps": [
+  {
+   "name": "suction_plate_top",
+   "type": "suction",
+   "position": [
+    -0.0145,
+    0.0005,
+    -0.0035
+   ],
+   "R": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     -1.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ]
+   ],
+   "approach": [
+    0.0,
+    -1.0,
+    0.0
+   ],
+   "close_axis": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "approach_m": 0.05,
+   "retreat_m": 0.05,
+   "tool_radius_m": 0.008,
+   "patch_radius_m": 0.006,
+   "opening_width_m": null,
+   "note": "plate top face, y = +0.0005 (1220 mm2 planar); largest circle clear of both 12.6 mm through-holes is r = 6.64 mm, centred here"
+  },
+  {
+   "name": "suction_plate_bottom",
+   "type": "suction",
+   "position": [
+    0.0155,
+    -0.0075,
+    -0.007
+   ],
+   "R": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ],
+    [
+     0.0,
+     -1.0,
+     0.0
+    ]
+   ],
+   "approach": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "close_axis": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "approach_m": 0.05,
+   "retreat_m": 0.05,
+   "tool_radius_m": 0.008,
+   "patch_radius_m": 0.006,
+   "opening_width_m": null,
+   "note": "plate bottom face, y = -0.0075 (1262 mm2 planar, one plane over the whole part); largest clear circle r = 10.25 mm here, so the same 12 mm cup keeps 4.2 mm of margin"
+  },
+  {
+   "name": "parallel_stem_from_top",
+   "type": "parallel",
+   "position": [
+    -0.0021,
+    -0.0035,
+    0.0154
+   ],
+   "R": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     -1.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ]
+   ],
+   "approach": [
+    0.0,
+    -1.0,
+    0.0
+   ],
+   "close_axis": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "approach_m": 0.05,
+   "retreat_m": 0.06,
+   "tool_radius_m": 0.0145,
+   "patch_radius_m": null,
+   "opening_width_m": 0.015,
+   "note": "straddles the T stem across X. Jaw walls are the planar faces at x = -0.0096 and x = +0.0054 (169 mm2 each), both spanning the full 8.0 mm plate thickness over z = +0.0048..+0.0260"
+  },
+  {
+   "name": "parallel_stem_from_bottom",
+   "type": "parallel",
+   "position": [
+    -0.0021,
+    -0.0035,
+    0.0154
+   ],
+   "R": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ],
+    [
+     0.0,
+     -1.0,
+     0.0
+    ]
+   ],
+   "approach": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "close_axis": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "approach_m": 0.05,
+   "retreat_m": 0.06,
+   "tool_radius_m": 0.0145,
+   "patch_radius_m": null,
+   "opening_width_m": 0.015,
+   "note": "same jaw walls as parallel_stem_from_top, approached from the plate's underside: a part lying boss-up presents only this side"
+  },
+  {
+   "name": "parallel_crossbar_from_top",
+   "type": "parallel",
+   "position": [
+    -0.0145,
+    -0.0035,
+    -0.0071
+   ],
+   "R": [
+    [
+     0.0,
+     -1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     -1.0
+    ],
+    [
+     1.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "approach": [
+    0.0,
+    -1.0,
+    0.0
+   ],
+   "close_axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "approach_m": 0.05,
+   "retreat_m": 0.06,
+   "tool_radius_m": 0.017,
+   "patch_radius_m": null,
+   "opening_width_m": 0.02,
+   "note": "straddles the crossbar across Z at x = -0.0145, between the two through-holes and 31 mm clear of the boss. Jaw walls are the planar faces at z = -0.0171 (407 mm2) and z = +0.0029 (256 mm2), both spanning the full 8.0 mm plate thickness"
+  }
+ ]
+}
