@@ -1,0 +1,135 @@
+# Exact versions of the inference runtime, frozen from the development
+# environment on Linux x86_64, CPython 3.12.3 (torch 2.13.0 built for
+# CUDA 13.0). Roots: numpy, opencv-python, matplotlib, trimesh, scipy,
+# open3d, ultralytics, torch, torchvision; everything else below is their
+# frozen transitive closure (open3d 0.19 declares dash/ipywidgets, hence the
+# notebook baggage -- pip needs it to resolve, the pipeline never imports it).
+#
+# CPU flavour (air-gapped industrial PC, what Dockerfile builds):
+#   pip install --index-url https://download.pytorch.org/whl/cpu \
+#       --extra-index-url https://pypi.org/simple -r requirements-lock.txt
+#   The CPU index serves torch 2.13.0+cpu / torchvision 0.28.0+cpu, which
+#   satisfy the pins below and carry no CUDA dependencies.
+#
+# CUDA flavour (workstation, PyPI):
+#   pip install -r requirements-lock.txt
+#   torch 2.13.0 on PyPI pins its CUDA runtime exactly; the frozen result was
+#     cuda-bindings==13.3.1
+#     cuda-pathfinder==1.6.0
+#     cuda-toolkit==13.0.3.0
+#     nvidia-cublas==13.1.1.3
+#     nvidia-cuda-cupti==13.0.85
+#     nvidia-cuda-nvrtc==13.0.88
+#     nvidia-cuda-runtime==13.0.96
+#     nvidia-cudnn-cu13==9.20.0.48
+#     nvidia-cufft==12.0.0.61
+#     nvidia-cufile==1.15.1.6
+#     nvidia-curand==10.4.0.35
+#     nvidia-cusolver==12.0.4.66
+#     nvidia-cusparse==12.6.3.3
+#     nvidia-cusparselt-cu13==0.8.1
+#     nvidia-nccl-cu13==2.29.7
+#     nvidia-nvjitlink==13.3.33
+#     nvidia-nvshmem-cu13==3.4.5
+#     nvidia-nvtx==13.0.85
+#     triton==3.7.1
+#   Nothing else changes between the two flavours.
+#
+# Regenerate on the same platform with a fresh 'pip freeze' after
+# reinstalling from requirements.txt; keep the platform note above honest.
+addict==2.4.0
+annotated-types==0.8.0
+anyio==4.14.2
+asttokens==3.0.2
+attrs==26.1.0
+blinker==1.9.0
+certifi==2026.7.22
+charset-normalizer==3.5.0
+click==8.4.2
+comm==0.2.3
+configargparse==1.7.5
+contourpy==1.3.3
+cycler==0.12.1
+dash==4.4.1
+executing==2.2.1
+fastjsonschema==2.22.1
+filelock==3.32.3
+flask==3.1.3
+fonttools==4.63.0
+fsspec==2026.7.0
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.18
+importlib-metadata==9.0.0
+ipython==9.16.1
+ipython-pygments-lexers==1.1.1
+ipywidgets==8.1.8
+itsdangerous==2.2.0
+janus==2.0.0
+jedi==0.20.0
+jinja2==3.1.6
+joblib==1.5.3
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+jupyter-core==5.9.1
+jupyterlab-widgets==3.0.16
+kiwisolver==1.5.0
+markupsafe==3.0.3
+matplotlib==3.11.1
+matplotlib-inline==0.2.2
+mpmath==1.3.0
+narwhals==2.24.0
+nbformat==5.11.0
+nest-asyncio==1.6.0
+networkx==3.6.1
+numpy==2.5.2
+nvidia-ml-py==13.610.43
+open3d==0.19.0
+opencv-python==5.0.0.93
+packaging==26.3
+pandas==3.0.5
+parso==0.8.7
+pexpect==4.9.0
+pillow==12.3.0
+platformdirs==4.11.2
+plotly==6.9.0
+polars==1.43.2
+polars-runtime-32==1.43.2
+prompt-toolkit==3.0.53
+psutil==7.2.2
+ptyprocess==0.7.0
+pure-eval==0.2.3
+pydantic==2.13.4
+pydantic-core==2.46.4
+pygments==2.20.0
+pyparsing==3.3.2
+pyquaternion==0.9.9
+python-dateutil==2.9.0.post0
+pyyaml==6.0.3
+referencing==0.37.0
+requests==2.34.2
+retrying==1.4.2
+rpds-py==2026.6.3
+scikit-learn==1.9.0
+scipy==1.18.0
+setuptools==84.0.0
+six==1.17.0
+stack-data==0.6.3
+sympy==1.14.0
+threadpoolctl==3.6.0
+torch==2.13.0
+torchvision==0.28.0
+tqdm==4.70.0
+traitlets==5.16.1
+trimesh==5.0.0
+typing-extensions==4.16.0
+typing-inspection==0.4.4
+ultralytics==8.4.120
+ultralytics-platform==0.1.4
+ultralytics-thop==2.1.6
+urllib3==2.7.0
+wcwidth==0.8.2
+werkzeug==3.1.8
+widgetsnbextension==4.0.15
+zipp==4.1.0

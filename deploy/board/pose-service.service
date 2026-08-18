@@ -1,0 +1,88 @@
+# Pose service for a bin-picking cell on a Jetson Nano 4 GB (JetPack 4.6,
+# systemd 237, cgroup v1). Install and enable:
+#
+#   sudo useradd --system --home-dir /var/lib/pose-service \
+#                --shell /usr/sbin/nologin pose
+#   sudo chown -R pose:pose /opt/pose-estimation
+#   sudo install -m 0644 deploy/board/pose-service.service \
+#        /etc/systemd/system/pose-service.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now pose-service
+#
+# Site-specific overrides (a different config path, thread count, log level)
+# go in /etc/default/pose-service, not in this file.
+
+[Unit]
+Description=6-DoF pose estimation service for the bin-picking cell
+Documentation=file:/opt/pose-estimation/deploy/board/README.md
+# Deliberately no After=network-online.target: the socket is 127.0.0.1 and
+# the camera is on USB/CSI, so waiting for a network would only delay boot.
+# Five failed starts in five minutes is a broken deployment (bad config,
+# missing weights) -- stop and stay failed instead of restarting forever.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=pose
+Group=pose
+WorkingDirectory=/opt/pose-estimation
+EnvironmentFile=-/etc/default/pose-service
+
+# Writable caches for a user with no login home. StateDirectory creates
+# /var/lib/pose-service owned by the service user on first start.
+StateDirectory=pose-service
+Environment=HOME=/var/lib/pose-service
+Environment=YOLO_CONFIG_DIR=/var/lib/pose-service/yolo
+Environment=MPLCONFIGDIR=/var/lib/pose-service/mpl
+Environment=MPLBACKEND=Agg
+# ultralytics must never reach for the network on a cell board: no DNS
+# probe, no usage events, no pip install attempt.
+Environment=YOLO_OFFLINE=1
+Environment=YOLO_AUTOINSTALL=0
+Environment=YOLO_VERBOSE=0
+# Fallback for the Open3D/OpenMP thread count; the service overwrites it from
+# the config's "omp_threads" before the first heavy import.
+Environment=OMP_NUM_THREADS=4
+
+ExecStart=/opt/pose-estimation/.venv/bin/python -m deploy.pose.server --config /opt/pose-estimation/deploy/board/config.nano.json
+
+# Loading the CAD cloud and the segmenter on four A57 cores takes tens of
+# seconds; /healthz reports not-ready until then, so give startup room.
+TimeoutStartSec=300
+TimeoutStopSec=30
+KillSignal=SIGINT
+
+Restart=on-failure
+RestartSec=10
+
+# 4 GB shared with the display and the camera buffers. The board profile
+# (one segmenter at imgsz 640) measured 878 MB RSS in the aarch64 image under
+# emulation and 1.18 GB on x86 -- the aarch64 stack is the lighter of the two
+# -- against 1.6 GB for both segmenters on x86 (analysis/runtime.md). This cap
+# is therefore roughly 1.7 GB of headroom over the expected peak, and still
+# leaves the OS 1.4 GB. On JetPack 4.6 (cgroup v1) MemoryMax maps to
+# memory.limit_in_bytes; MemoryHigh is cgroup-v2 only and would be ignored,
+# hence a hard cap plus swap rather than soft throttling.
+MemoryAccounting=yes
+MemoryMax=2600M
+# Within that cap the picker is what the board exists to run: give it the
+# cores ahead of the desktop, and let the kernel reach for something else
+# first when memory runs out.
+Nice=-5
+OOMScoreAdjust=-200
+
+# No WatchdogSec: the service does not call sd_notify, and a liveness check
+# that only proves the process exists would be worse than the cell's own
+# /healthz poll and per-cycle timeout.
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pose-service
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

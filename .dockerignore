@@ -1,4 +1,4 @@
-# Keep the Docker build context to what deploy/Dockerfile copies.
+# Keep the Docker build context to what Dockerfile copies.
 .venv/
 .git/
 train/
@@ -7,6 +7,8 @@ model/
 seg_data/
 seg_runs/
 seg_runs_l/
+seg_runs_n/
+sessions/
 pred_test/
 overlays_test/
 out_*/

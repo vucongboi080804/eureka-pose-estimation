@@ -35,10 +35,10 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import cv2
 import numpy as np
 
-from ..cell.drift import UNKNOWN as OUTCOME_UNKNOWN
-from ..cell.policy import EMPTY, FAULT, PICK
-from ..cell.runner import LOOP_OK
-from ..pose_service.schema import GATE_PICK
+from ..pick.drift import UNKNOWN as OUTCOME_UNKNOWN
+from ..pick.policy import EMPTY, FAULT, PICK
+from ..pick.runner import LOOP_OK
+from ..pose.schema import GATE_PICK
 
 #: Rendered size. 1280x720 because that is the smallest frame in which a
 #: 0.4-scale Hershey line is still legible on a laptop at a normal
@@ -72,7 +72,7 @@ AXIS_LENGTH = 0.015
 AXIS_THICKNESS = 3
 
 #: Drawn length of the approach arrow, metres. Every grasp in
-#: deploy/cell/grasps.part.json declares a 50 mm approach standoff, and
+#: deploy/pick/grasps.part.json declares a 50 mm approach standoff, and
 #: the dict a candidate serialises does not carry it, so the arrow states
 #: that standoff rather than inventing a length.
 APPROACH_DRAW_M = 0.05
@@ -183,7 +183,7 @@ class HudFrame:
 
     @classmethod
     def from_cycle(cls, record: Any) -> "HudFrame":
-        """Adapt a :class:`deploy.cell.runner.CycleRecord`."""
+        """Adapt a :class:`deploy.pick.runner.CycleRecord`."""
         result, action = record.result, record.action
         return cls(
             rgb=record.frame.rgb, K=record.frame.K,
@@ -537,7 +537,7 @@ def hardware_line(bench_path: Optional[str] = None,
 
 
 def _local_host() -> Dict[str, Any]:
-    """This machine, probed the way deploy/jetson-nano/bench.py probes it.
+    """This machine, probed the way deploy/board/bench.py probes it.
 
     The same two files decide it: a Tegra is the only thing that puts a
     model name in /proc/device-tree/model, and the runbook bind-mounts
@@ -617,7 +617,7 @@ def _outcome(outcome: str) -> str:
     """What the cell's success sensor said about the pick just commanded.
 
     ``unknown`` is the honest answer from a loop with no robot behind it
-    (deploy/cell/runner.py) and it belongs on the frame: a green PICK
+    (deploy/pick/runner.py) and it belongs on the frame: a green PICK
     beside a rising pick counter otherwise reads as a part in the gripper.
     """
     if outcome == OUTCOME_UNKNOWN:

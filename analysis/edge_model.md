@@ -55,7 +55,7 @@ not reach the poses; see the next section.
 
 `yolo11n-seg.pt` (the COCO-pretrained starting checkpoint, 6.2 MB) was
 **downloaded by ultralytics at train time**. The deployment recipe is
-air-gapped (`deploy/OFFLINE.md`), so the board must receive the *trained*
+air-gapped (`docs/offline-install.md`), so the board must receive the *trained*
 weight; retraining on the board is not a supported path.
 
 ## Accuracy
@@ -294,7 +294,7 @@ shapes throughout, which is what a TensorRT builder wants.
 The export **auto-installed `onnx` 1.22.0** (plus `protobuf` 7.35.1 and
 `ml-dtypes` 0.6.0) into the development venv — ultralytics fetches it on
 demand and this needed network. Those packages are not in
-`deploy/requirements-lock.txt`, are not needed at inference time, and
+`requirements-lock.txt`, are not needed at inference time, and
 `setup.sh` rebuilds the venv from the lock file, so the shipped environment
 is unaffected.
 
@@ -308,7 +308,7 @@ version and driver, so an engine built on this desktop (RTX 4070 Ti SUPER,
 CUDA 13) would not load on the Nano's Maxwell GPU under JetPack 4.6 /
 TensorRT 8.2. The conversion has to run on the Nano itself, and there
 JetPack 4.6 ships TensorRT 8.2 with **Python 3.6 bindings only** while the
-deployment stack is Python 3.8 (`deploy/jetson-nano/README.md`) — so it
+deployment stack is Python 3.8 (`deploy/board/README.md`) — so it
 would have to go through the `trtexec` CLI rather than the Python API.
 None of that was attempted or verified. Note also that the GPU serves only
 ~2 % of scene time in this pipeline (`analysis/runtime.md`), so a TensorRT

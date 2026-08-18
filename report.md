@@ -19,7 +19,7 @@
   ([analysis/runtime.md](analysis/runtime.md)).
 - **Deployment.** Measured on a Jetson Nano 4 GB, CPU only: 2.6–2.7 s per
   pick, 624 MB peak RSS, poses agree with x86 to 0.04 mm
-  ([deploy/jetson-nano/README.md](deploy/jetson-nano/README.md)).
+  ([deploy/board/README.md](deploy/board/README.md)).
 
 ![Predicted poses on eight test scenes](docs/figures/hero_overlays.png)
 
@@ -398,7 +398,7 @@ The assignment metric is stricter than the production task. A robot picks
 (1.000 here) rather than full-scene AR, and every pick thins the pile.
 `--pick` implements that loop: stop at the first pose scoring ≥ 0.8
 (0.7 s per scene on the desktop GPU); the cell gates on `score` ≥ 0.7 and
-rescans or shakes otherwise. `deploy/live_adapter.py` is the seam where a
+rescans or shakes otherwise. `deploy/pose/adapter.py` is the seam where a
 camera SDK plugs in — one registered RGB-D frame + intrinsics becomes the
 same `Scene` the offline runner uses (verified identical output on a test
 scene).
@@ -408,7 +408,7 @@ flowchart LR
   rs["RealSense"] --> cam["Camera<br/>service"]
   rep["Session<br/>replay"] --> cam
   cam -- "frame + K" --> ps["Pose<br/>service"]
-  ps -- "poses +<br/>score" --> cell["Cell ·<br/>gate 0.7"]
+  ps -- "poses +<br/>score" --> cell["Pick loop ·<br/>gate 0.7"]
   cell -- "grasp" --> robot["Robot<br/>controller"]
   cell -. "rescan / shake" .-> cam
   classDef data fill:#eef2f7,stroke:#6b7a90,color:#1a1a1a
@@ -423,20 +423,20 @@ flowchart LR
 
 *Three processes on one device; a recorded session replays through the same camera interface as a real sensor.*
 
-What each layer owns ([deploy/ARCHITECTURE.md](deploy/ARCHITECTURE.md),
-[deploy/README.md](deploy/README.md)):
+`deploy/` holds exactly this, one folder per concern
+([deploy/README.md](deploy/README.md), [deploy/ARCHITECTURE.md](deploy/ARCHITECTURE.md)):
 
-- **Camera service** (`deploy/camera_service/`): `/v1/frame`,
+- **Camera service** (`deploy/camera/`): `/v1/frame`,
   `/v1/intrinsics`, `/preview.mjpg`, `/healthz`, `/metrics`; sources scene
   folder, session replay or RealSense.
-- **Pose service** (`deploy/pose_service/`): `/v1/estimate`, `/healthz`,
+- **Pose service** (`deploy/pose/`): `/v1/estimate`, `/healthz`,
   `/readyz`, `/metrics`; the same `detect_scene_hybrid` and `PoseEstimator`
   that produced the submission; `score` = seg conf × depth verification,
   gate 0.7; every pose carries the configuration digest that produced it.
-- **Cell** (`deploy/cell/`): grasp planning from `grasps.part.json`,
-  hand-eye calibration, a drift monitor, and the pick policy pick → rescan →
-  shake → stop.
-- **Demo loop** (`deploy/jetson-nano/cell_demo.py`): the three collapsed
+- **Pick layer** (`deploy/pick/`): grasp planning from `grasps.part.json`,
+  hand-eye calibration, a drift monitor, the pick policy pick → rescan →
+  shake → stop, and `runner.py`, the loop that drives the three services.
+- **Demo loop** (`deploy/demo/cell_demo.py`): the three collapsed
   into one process for a board demonstration, writing an annotated video as
   it goes. It has not been run on the board yet (the board was offline); no
   board demo video exists.
@@ -474,7 +474,7 @@ over on memory.
 
 The board profile is one segmenter, `weights/part-seg-nano.pt` (YOLO11n-seg
 at 640 px, 6.0 MB), in pick mode
-([deploy/jetson-nano/config.nano.json](deploy/jetson-nano/config.nano.json)).
+([deploy/board/config.nano.json](deploy/board/config.nano.json)).
 Trained with the shipped recipe on the same folds, it reaches AR 0.837
 (mean of three draws) against 0.838 for the large model downscaled to 640
 and 0.851 shipped: what the board gives up is the second segmenter
@@ -489,13 +489,13 @@ configuration and draw
 *Segmenter configurations: AR against pick latency on four CPU cores; marker size is the weight file size.*
 
 **Packaging.** `./setup.sh` builds the venv from the exact pins
-(`deploy/requirements-lock.txt`, CPU or CUDA); `deploy/Dockerfile` is a CPU
+(`requirements-lock.txt`, CPU or CUDA); `Dockerfile` is a CPU
 image (1.24 GB compressed) that reproduced the submission poses with `--network none`
 — inference makes no network request; a wheelhouse recipe covers air-gapped
-x86 ([deploy/OFFLINE.md](deploy/OFFLINE.md)). `deploy/jetson-nano/` holds
+x86 ([docs/offline-install.md](docs/offline-install.md)). `deploy/board/` holds
 the Python 3.8 / aarch64 pin set, Dockerfile, systemd unit, preflight,
 benchmark and acceptance scripts; the Docker image is the validated path
-onto the board ([deploy/jetson-nano/README.md](deploy/jetson-nano/README.md)).
+onto the board ([deploy/board/README.md](deploy/board/README.md)).
 Not verified on the board: the CUDA torch path, memory headroom with a
 desktop session running, the systemd unit under cgroup v1, a real camera on
 the live path.
@@ -539,10 +539,15 @@ results/             prediction JSONs behind every table and ablation row ·
 analysis/            failure_analysis · score_calibration (+ .png) · ablation ·
                      runtime · nano_profile · edge_model · failures/ (crops)
 docs/figures/        the plots in this report, made by scripts/make_figures.py
-deploy/              ARCHITECTURE.md · OFFLINE.md · Dockerfile · requirements-lock.txt ·
-                     live_adapter.py · pick_demo.py · camera_service/ · pose_service/ ·
-                     cell/ · demo/ · jetson-nano/ (pins, Dockerfile, systemd unit,
-                     preflight, bench, acceptance, cell_demo)
+docs/offline-install.md   wheelhouse and Docker recipes for an air-gapped x86 machine
+Dockerfile, requirements-lock.txt   CPU image and exact pins that reproduce the submission
+deploy/              the vision cell for the Jetson Nano, one folder per concern:
+                     camera/ (frames as a service, session record + replay) ·
+                     pose/ (the estimator as a service, adapter.py for one frame) ·
+                     pick/ (grasp, hand-eye, drift, policy, the pick loop) ·
+                     demo/ (HUD, video, cell_demo.py: the one-process board demo) ·
+                     board/ (Jetson Nano: pins, Dockerfile, systemd unit, provision,
+                     preflight, bench, acceptance)
 ```
 
 `src/`, `scripts/`, `results/`, `analysis/`, `weights/` and `deploy/` each
@@ -551,10 +556,10 @@ carry a `README.md` that describes their files.
 ## Reproducing
 
 ```bash
-./setup.sh                                  # .venv from deploy/requirements-lock.txt (Python 3.12; --cpu/--cuda)
+./setup.sh                                  # .venv from requirements-lock.txt (Python 3.12; --cpu/--cuda)
 ./run_all.sh <release_path> [split]         # submission + overlays (+ score if GT)
 ./run_all.sh <release_path> test            # a private release: same command, its test split
-# or: docker build -f deploy/Dockerfile -t pose-est:cpu . && docker run --rm --network none \
+# or: docker build -t pose-est:cpu . && docker run --rm --network none \
 #         -v <release_path>:/data:ro -v $PWD/out:/out pose-est:cpu /data test /out
 
 # Figures in this report (docs/figures/*.png) from results/ and analysis/:
@@ -594,7 +599,7 @@ diverges on this 20-image dataset. `blenderproc` is needed only for the
 synthetic-data scripts (not in `requirements.txt`). The board profile's
 recipe and benchmark commands are in
 [analysis/edge_model.md](analysis/edge_model.md) and
-[deploy/jetson-nano/README.md](deploy/jetson-nano/README.md).
+[deploy/board/README.md](deploy/board/README.md).
 
 ## Tools disclosure
 

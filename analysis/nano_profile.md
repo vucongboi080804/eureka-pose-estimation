@@ -160,7 +160,7 @@ written, `analysis/edge_model.md` has trained a segmenter for that slot:
 `weights/part-seg-nano.pt` reaches the same accuracy as the downscaled large
 model (0.837 against 0.838, both means of multiple draws) at 6.0 MB instead
 of 55.9 and 49 ms instead of 619 ms per frame. **The board should run that
-weight**; `deploy/jetson-nano/config.nano.json` does.
+weight**; `deploy/board/config.nano.json` does.
 
 Either way the trade is the same: AR around 0.84 against the shipped 0.851 —
 roughly one required instance, and inside the ±0.015 band these rows carry —

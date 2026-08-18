@@ -4,10 +4,10 @@
 #   ./setup.sh                 # auto: CUDA torch when nvidia-smi answers, else CPU
 #   ./setup.sh --cpu           # CPU-only torch (air-gapped PC, laptop, CI)
 #   ./setup.sh --cuda          # PyPI torch with its CUDA runtime
-#   ./setup.sh --jetson-nano   # Python 3.8 / aarch64 pins (deploy/jetson-nano/)
+#   ./setup.sh --jetson-nano   # Python 3.8 / aarch64 pins (deploy/board/)
 #
 # Creates .venv next to this script from the exact pins in
-# deploy/requirements-lock.txt (frozen on Linux x86_64, CPython 3.12) and
+# requirements-lock.txt (frozen on Linux x86_64, CPython 3.12) and
 # checks that the runtime imports. Then: ./run_all.sh <release_path> [split].
 #
 # Python 3.12 is expected; another version falls back to the unpinned
@@ -43,9 +43,9 @@ fi
 VERSION="$("$PYTHON_BIN" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
 
 if [ "$FLAVOUR" = "--jetson-nano" ]; then
-    REQ=(-r deploy/jetson-nano/requirements-jetson-nano.txt)
+    REQ=(-r deploy/board/requirements-jetson-nano.txt)
 elif [ "$VERSION" = "3.12" ]; then
-    REQ=(-r deploy/requirements-lock.txt)
+    REQ=(-r requirements-lock.txt)
 else
     echo "warning: Python $VERSION, not 3.12 -- installing the unpinned requirements.txt" >&2
     REQ=(-r requirements.txt)

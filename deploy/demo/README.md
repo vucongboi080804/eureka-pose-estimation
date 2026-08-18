@@ -1,10 +1,10 @@
-# Demo
+# `demo/` — show the loop
 
 Records the cell running as an MP4 of held frames plus a contact sheet; each frame is the released overlay with a side panel showing the score, the gate, the decision and the latency.
 
 ```mermaid
 flowchart LR
-    S["session<br/>or folder"]:::data --> L[cell loop]:::check
+    S["session<br/>or folder"]:::data --> L[pick loop]:::check
     L --> H[hud.py]:::geom
     L --> J[cycles.jsonl]:::data
     J -.->|--annotate-only| H
@@ -42,7 +42,7 @@ flowchart LR
 
 Silhouettes come from `score.silhouette` and axes from `visualize.py`'s convention, so a demo frame and an `overlays_test/` image are the same drawing of the same pose; the chosen instance is magenta. Rendering is cv2 only, so it runs on the board.
 
-One-process variant for the board: [../jetson-nano/cell_demo.py](../jetson-nano/cell_demo.py) collapses camera, pose service and cell into one interpreter and writes `cell_demo.mp4`, `cycles.jsonl` and `summary.json` as it goes. It has not been run on the Jetson Nano yet (the board was offline when it was written); the board numbers in [../jetson-nano/README.md](../jetson-nano/README.md) come from `bench.py`, which runs the pipeline without a HUD.
+One-process variant for the board: [cell_demo.py](cell_demo.py) collapses camera, pose service and pick layer into one interpreter and writes `cell_demo.mp4`, `cycles.jsonl` and `summary.json` as it goes. It has not been run on the Jetson Nano yet (the board was offline when it was written); the board numbers in [../board/README.md](../board/README.md) come from `bench.py`, which runs the pipeline without a HUD.
 
 ## Files
 
@@ -50,3 +50,4 @@ One-process variant for the board: [../jetson-nano/cell_demo.py](../jetson-nano/
 | --- | --- |
 | [render_demo.py](render_demo.py) | `DemoVideo` and the contact sheet; live or `--annotate-only` |
 | [hud.py](hud.py) | `FrameHud`, `HudFrame`, `hardware_line`: one cycle drawn |
+| [cell_demo.py](cell_demo.py) | the same loop in one process — camera, estimator, planner, policy and HUD in one interpreter; writes `cell_demo.mp4`, `cycles.jsonl`, `summary.json` (`--no-video` for a first-pick check) |

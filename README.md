@@ -12,7 +12,7 @@ Candidate submission for the Eureka Robotics assignment (Boi Vu Cong). The assig
 | --- | --- | --- | --- |
 | 0.851 | 1.000 | 112 / 117 | 0.7 s desktop GPU · 2.7 s Jetson Nano 4 GB (measured) |
 
-Leave-scenes-out cross-validation on the 20 train scenes with the released `score.py` (`results/train_ensemble_run1.json`; a second draw gives the same AR). The 5 unmatched instances are duplicate ground-truth labels, so 112 / 117 is the ceiling for any one-pose-per-part submission ([analysis/failure_analysis.md](analysis/failure_analysis.md)). Time per pick is `--pick` mode: stop at the first pose scoring at least 0.8 ([analysis/runtime.md](analysis/runtime.md)); the Jetson figure is the board profile, one YOLO11n segmenter at 640 px ([deploy/jetson-nano/README.md](deploy/jetson-nano/README.md)). Every accuracy number in this repository re-scores from a file in [results/](results/).
+Leave-scenes-out cross-validation on the 20 train scenes with the released `score.py` (`results/train_ensemble_run1.json`; a second draw gives the same AR). The 5 unmatched instances are duplicate ground-truth labels, so 112 / 117 is the ceiling for any one-pose-per-part submission ([analysis/failure_analysis.md](analysis/failure_analysis.md)). Time per pick is `--pick` mode: stop at the first pose scoring at least 0.8 ([analysis/runtime.md](analysis/runtime.md)); the Jetson figure is the board profile, one YOLO11n segmenter at 640 px ([deploy/board/README.md](deploy/board/README.md)). Every accuracy number in this repository re-scores from a file in [results/](results/).
 
 ## How it works
 
@@ -54,7 +54,7 @@ WORKERS=2 ./run_all.sh <release> test        # small machines
 Docker, no network at run time:
 
 ```bash
-docker build -f deploy/Dockerfile -t pose-est:cpu . && docker run --rm --network none \
+docker build -t pose-est:cpu . && docker run --rm --network none \
     -v <release>:/data:ro -v $PWD/out:/out pose-est:cpu /data test /out
 ```
 
@@ -74,16 +74,17 @@ Needs Python 3.12 (other versions fall back to the unpinned [requirements.txt](r
 | [results/](results/README.md) | Prediction JSONs behind every table row, ablation, and board benchmark |
 | [analysis/](analysis/README.md) | Failure analysis, score calibration, ablation, runtime, edge model, board profile |
 | [docs/figures/](docs/figures/) | Plots used by README and report |
-| [deploy/](deploy/README.md) | Camera service, pose service, cell layer, Docker, offline install, Jetson Nano |
+| [deploy/](deploy/README.md) | The vision cell for the Jetson Nano: `camera/` · `pose/` · `pick/` · `demo/` · `board/` |
+| [Dockerfile](Dockerfile) / [requirements-lock.txt](requirements-lock.txt) | CPU image and exact pins to reproduce the submission on any x86 machine ([docs/offline-install.md](docs/offline-install.md)) |
 | [setup.sh](setup.sh) / [run_all.sh](run_all.sh) | Environment from the pinned lock / one-command run on any release folder |
 | [score.py](score.py) / [visualize.py](visualize.py) | Released by Eureka, unchanged |
-| [requirements.txt](requirements.txt) | Unpinned dependencies; the pinned lock is `deploy/requirements-lock.txt` |
+| [requirements.txt](requirements.txt) | Unpinned dependencies (fallback when Python is not 3.12) |
 
 ## Deployment
 
-The same pipeline runs as a camera service, a pose service and a cell layer (grasp planning, hand-eye, pick policy); see [deploy/README.md](deploy/README.md) and [deploy/ARCHITECTURE.md](deploy/ARCHITECTURE.md).
-Measured on a Jetson Nano 4 GB, CPU only: 2.6-2.7 s per pick, 624 MB peak RSS, poses matching the desktop to 0.04 mm / 0.14° (`results/bench/board_nano640.json`, [deploy/jetson-nano/README.md](deploy/jetson-nano/README.md)).
-The single-process cell demo (`deploy/jetson-nano/cell_demo.py`) has not yet been run on the board.
+The same pipeline, packaged as the vision cell that runs on a Jetson Nano: `deploy/camera/` (frames as a service), `deploy/pose/` (the estimator as a service), `deploy/pick/` (pose → grasp → action), `deploy/demo/` (annotated video), `deploy/board/` (Jetson packaging); see [deploy/README.md](deploy/README.md).
+Measured on a Jetson Nano 4 GB, CPU only: 2.6-2.7 s per pick, 624 MB peak RSS, poses matching the desktop to 0.04 mm / 0.14° (`results/bench/board_nano640.json`, [deploy/board/README.md](deploy/board/README.md)).
+The single-process cell demo (`deploy/demo/cell_demo.py`) has not yet been run on the board.
 
 ## Tools
 

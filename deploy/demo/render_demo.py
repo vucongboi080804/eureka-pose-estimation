@@ -42,10 +42,10 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 import cv2
 import numpy as np
 
-from ..cell.calibration import CalibrationError
-from ..cell.grasp import GraspConfigError
-from ..cell.policy import ACCEPT_SCORE, PickPolicy
-from ..cell.runner import CellLoop, LOOP_OK, build_planner, load_hand_eye
+from ..pick.calibration import CalibrationError
+from ..pick.grasp import GraspConfigError
+from ..pick.policy import ACCEPT_SCORE, PickPolicy
+from ..pick.runner import CellLoop, LOOP_OK, build_planner, load_hand_eye
 from .hud import FrameHud, HudFrame, hardware_line
 
 EXIT_OK = 0
@@ -357,7 +357,7 @@ def main(argv: Optional[list] = None) -> int:
                                                         "3d_model.ply"))
     parser.add_argument("--grasps", default=None,
                         help="Grasp definition file (default: the one "
-                             "shipped beside deploy/cell)")
+                             "shipped beside deploy/pick)")
     parser.add_argument("--hand-eye", default=None)
     parser.add_argument("--accept-score", type=float, default=ACCEPT_SCORE)
     parser.add_argument("--hardware", default=None,
@@ -370,7 +370,7 @@ def main(argv: Optional[list] = None) -> int:
                              "machine (results/bench/*.json)")
     args = parser.parse_args(argv)
     if args.grasps is None:
-        from ..cell.grasp import default_grasps_path
+        from ..pick.grasp import default_grasps_path
         args.grasps = default_grasps_path()
     if args.annotate_only and not args.log:
         print("--annotate-only needs the --log it re-renders",

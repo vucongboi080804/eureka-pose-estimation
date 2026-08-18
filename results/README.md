@@ -23,7 +23,7 @@ flowchart LR
   EOM[eval_oracle_masks]:::geom --> ACC
   RP[run_pipeline]:::geom --> ACC
   ACC --> SC[score.py]:::check --> T[AR top-1 prec@10]:::out
-  BEN[jetson-nano/bench.py]:::geom --> TIM[bench/]:::data --> CB[compare_bench.py]:::check
+  BEN[board/bench.py]:::geom --> TIM[bench/]:::data --> CB[compare_bench.py]:::check
   RP --> BRD[board/]:::data
   classDef data fill:#eef2f7,stroke:#6b7a90,color:#1a1a1a
   classDef geom fill:#e6f4ea,stroke:#3f8f5a,color:#1a1a1a
@@ -90,7 +90,7 @@ plot [docs/figures/edge_tradeoff.png](../docs/figures/edge_tradeoff.png). Single
 
 ## `bench/` and `board/` — timing records, not scored
 
-`bench/*.json` come from [`deploy/jetson-nano/bench.py`](../deploy/jetson-nano/README.md)
+`bench/*.json` come from [`deploy/board/bench.py`](../deploy/board/README.md)
 with one command line (nano weight, `--imgsz 640`, `--pick`, 4 threads, CPU only);
 `compare_bench.py` diffs them: same poses within 2 mm / 2° is the gate, wall time is
 reported without a verdict. Plot [docs/figures/board_vs_desktop.png](../docs/figures/board_vs_desktop.png).
