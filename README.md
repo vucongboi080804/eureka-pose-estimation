@@ -1,163 +1,90 @@
-> **Candidate submission (Boi Vu Cong)** — the solution lives next to
-> this assignment text. Start with [`report.md`](report.md) (approach,
-> results, analysis, limitations, tools disclosure). Deliverables:
-> `submission.json` (40 test scenes) and `overlays_test/` (predicted poses
-> drawn on every test image); shipped weights in `weights/`.
->
-> Clone and run: `./setup.sh` (venv from the pinned lock; `--cpu` /
-> `--cuda`) then `./run_all.sh <release_path> [split]` — submission +
-> overlays, auto-scored when ground truth ships next to the images. Docker
-> and air-gapped recipes: [`deploy/OFFLINE.md`](deploy/OFFLINE.md); Jetson
-> Nano: [`deploy/jetson-nano/`](deploy/jetson-nano/README.md). Every table
-> row is a JSON in `results/` (`score.py` re-scores it), studies in
-> `analysis/`. Everything below this line is the original assignment
-> statement, unchanged.
+# 6-DoF pose estimation of a rigid part in bin-picking scenes
 
-# 6-DoF pose estimation assignment
+Candidate submission for the Eureka Robotics assignment (Boi Vu Cong). The assignment text is [ASSIGNMENT.md](ASSIGNMENT.md); the write-up is [report.md](report.md).
 
-## Background
+![Predicted poses on eight test scenes](docs/figures/hero_overlays.png)
 
-A robot cell picks parts one at a time out of a tray. A camera mounted above the
-tray captures a colour image and a depth map, a vision program locates every
-part and estimates its pose, and the robot uses that pose to approach and grasp
-one part. The parts are tipped into the tray loose, so they come to rest in
-arbitrary orientations, lie against one another and partially occlude one
-another, and no two trays are alike.
+*Predicted poses drawn on eight test scenes; all 40 are in [overlays_test/](overlays_test/).*
 
-A pick point on its own is not enough. The gripper has to be oriented to the
-part it is picking, and the part may be lying on any of its faces, so the vision
-program has to report a full 6-DoF pose rather than a position. This assignment
-is that vision program, developed and evaluated offline on recorded captures.
+## Results at a glance
 
-## Task
+| AR | top-1 | Required instances at 10 mm | Time per pick |
+| --- | --- | --- | --- |
+| 0.851 | 1.000 | 112 / 117 | 0.7 s desktop GPU · 2.7 s Jetson Nano 4 GB (measured) |
 
-Each scene is one RGB-D capture of a tray holding multiple instances of a single
-rigid part. Given the RGB image, the depth map, the camera intrinsics and the CAD
-model, detect every instance of the part and estimate its 6-DoF pose.
+Leave-scenes-out cross-validation on the 20 train scenes with the released `score.py` (`results/train_ensemble_run1.json`; a second draw gives the same AR). The 5 unmatched instances are duplicate ground-truth labels, so 112 / 117 is the ceiling for any one-pose-per-part submission ([analysis/failure_analysis.md](analysis/failure_analysis.md)). Time per pick is `--pick` mode: stop at the first pose scoring at least 0.8 ([analysis/runtime.md](analysis/runtime.md)); the Jetson figure is the board profile, one YOLO11n segmenter at 640 px ([deploy/jetson-nano/README.md](deploy/jetson-nano/README.md)). Every accuracy number in this repository re-scores from a file in [results/](results/).
 
-`train/` contains scenes with ground truth. `test/` contains scenes with images
-only. Submit one `submission.json` covering every test scene.
+## How it works
 
-Poses are required only for instances at least 80% visible, where visibility is
-the area of an instance's visible region divided by the area it would cover
-unoccluded. Instances below that threshold do not affect the score.
-
-Any method and any library may be used. Include a short write-up of the approach
-and its known limitations.
-
-## Contents
-
-```
-model/3d_model.glb        CAD model, metres, in the object frame
-model/3d_model.ply        the same model
-train/<scene>/
-  rgb.png                 8-bit colour
-  depth.png               16-bit, millimetres, 0 = no measurement
-  camera.json             intrinsics, image size, depth scale
-  masks/000.png           binary 0/255, one file per labelled instance
-  ignore/000.png          see "Ignore regions" (may be absent)
-  poses.json              ground truth
-test/<scene>/
-  rgb.png  depth.png  camera.json
-submission_template.json  every test scene id, with empty lists
-visualize.py              overlays ground truth on the images
-score.py                  the scoring script used for grading
+```mermaid
+flowchart LR
+    F["RGB-D<br/>frame"]:::data --> S["Two YOLO11<br/>segmenters"]:::learn
+    S --> R["RANSAC<br/>+ ICP"]:::geom
+    R --> V["Depth +<br/>hole check"]:::check
+    V --> L[Polish]:::geom
+    L --> Z["Poses +<br/>score"]:::out
+    V -.-> G["Rotation<br/>grid"]:::geom
+    G -. "none verified" .-> R
+    classDef data fill:#eef2f7,stroke:#6b7a90,color:#1a1a1a
+    classDef learn fill:#e8f0fe,stroke:#4a6fa5,color:#1a1a1a
+    classDef geom fill:#e6f4ea,stroke:#3f8f5a,color:#1a1a1a
+    classDef check fill:#fff4e5,stroke:#d08a2b,color:#1a1a1a
+    classDef out fill:#f3e8fd,stroke:#8e5bb8,color:#1a1a1a
 ```
 
-The two scripts require `numpy`, `opencv-python`, `matplotlib` and `trimesh`.
+*Two segmenters (one trained on the 20 real scenes, one only on synthetic CAD renders) propose masks; classical geometry registers, verifies and polishes each pose; `score` = segmenter confidence × depth verification.*
 
-## Conventions
+- Masks come from a network because segmentation is what a network learns best from 20 images.
+- Pose comes from geometry because the depth channel answers it better than a regressor trained on 20 scenes.
+- Every pose is verified against free space, so a wrong pose gets a low score, not a confident mistake.
 
-* A pose is `T_camera_object`, mapping a point in the object frame to the camera
-  frame:
+Details: [report.md#method](report.md#method).
 
-  ```
-  p_camera = R @ p_cad + t
-  ```
+## Run it
 
-* `R` is a row-major 3x3 rotation. `t` is in metres, as is the CAD model, so the
-  mesh requires no rescaling.
-* The camera frame follows the OpenCV convention: +X right, +Y down, +Z forward
-  along the optical axis.
-* `K` is a standard pinhole matrix. Images are rectified and lens distortion is
-  zero, so projection is `K @ p_camera` followed by a perspective divide.
-* `Z_metres = depth_png_value * camera.json["depth_scale"]`. Depth is registered
-  to the colour image: pixel `(u, v)` is the same surface point in both. Pixels
-  with no measurement are set to 0.
-* Masks cover the visible region only: an occluded instance's mask covers just
-  the part of it that is visible.
-* The part is asymmetric, so each instance has exactly one correct pose.
-* Intrinsics and image size vary between scenes.
-
-## Visualisation
+`<release>` is a folder holding `model/` and the split to run (`test/`); `.` if the assignment dataset is unpacked into this clone.
 
 ```bash
-python visualize.py --root . --split train
-python visualize.py --root . --split train --save overlays/
+./setup.sh                                   # .venv from the pinned lock; auto-detects CUDA, or --cpu | --cuda
+./run_all.sh <release> test                  # -> out_<release name>_test/submission.json + overlays/ (+ score.py if poses.json present)
+WORKERS=2 ./run_all.sh <release> test        # small machines
+.venv/bin/python score.py --release <release> --split train --submission results/train_ensemble_run1.json   # AR 0.851
 ```
 
-Draws each mask and each ground-truth pose, as axes at the object origin, over
-the scene image.
-
-## Ignore regions
-
-`ignore/` contains masks of visible instances that carry no ground-truth pose.
-They are neither positives nor negatives: predictions landing on them are
-discarded rather than counted as errors. Not every scene has them.
-
-## Submission
-
-Return two things:
-
-* `submission.json`, in the format below.
-* A folder of the test images with the predicted poses drawn on them, one image
-  per test scene, in the style of `visualize.py`.
-
-`submission.json` is keyed by test scene id, with a list of predictions per
-scene. Copy `submission_template.json` and fill in the lists.
-
-```json
-{
-  "000003": [
-    {"R": [[1,0,0],[0,1,0],[0,0,1]], "t": [0.01, -0.02, 0.55], "score": 0.94},
-    {"R": [[1,0,0],[0,1,0],[0,0,1]], "t": [0.03, 0.00, 0.56], "score": 0.71}
-  ],
-  "000008": []
-}
-```
-
-`R` row-major 3x3 and `t` in metres, following the conventions above.
-Predictions may be listed in any order; each is matched to ground truth by pose,
-not by position in the list. `score` is the prediction's confidence and sets its
-rank within the scene. A prediction without a `score` ranks below every scored
-prediction.
-
-## Evaluation
-
-`score.py` is the script used for grading. It runs against `train/`, where the
-labels ship with the images:
+Docker, no network at run time:
 
 ```bash
-python score.py --release . --split train --submission my_train_poses.json
-python score.py --release . --split train --selftest
+docker build -f deploy/Dockerfile -t pose-est:cpu . && docker run --rm --network none \
+    -v <release>:/data:ro -v $PWD/out:/out pose-est:cpu /data test /out
 ```
 
-The metric is MSSD (maximum symmetry-aware surface distance): the largest
-deviation of any point on the model, taken between corresponding vertices and
-minimised over the object's symmetry transforms. For this asymmetric object that
-set is the identity, so
+Needs Python 3.12 (other versions fall back to the unpinned [requirements.txt](requirements.txt)), about 2 GB RAM per worker, GPU optional. The 40 test scenes take 135 s at 6 workers on a desktop GPU, 160 s CPU-only ([analysis/runtime.md](analysis/runtime.md)).
 
-```
-e = max over model vertices x of  || (R_est - R_gt) x + (t_est - t_gt) ||
-```
+## What is where
 
-* Recall and precision are reported at MSSD thresholds of 2, 4, 6, 8 and 10 mm,
-  and averaged into a single AR.
-* Predictions are matched in order of descending `score`, each claiming the
-  closest unclaimed instance within the threshold. Each instance is claimed at
-  most once.
-* top-1 per scene: the fraction of scenes whose highest-scoring prediction is
-  within 5 mm of an instance. A scene with no prediction counts against it.
-* Instances less than 80% visible are optional, as stated under Task.
-* Predictions landing on an `ignore` region are discarded rather than counted as
-  false positives.
+| Path | Contents |
+| --- | --- |
+| [ASSIGNMENT.md](ASSIGNMENT.md) | The assignment as received |
+| [report.md](report.md) | Method, results, analysis, limitations, deployment, tools |
+| [submission.json](submission.json) | 363 poses over the 40 test scenes |
+| [overlays_test/](overlays_test/) | Predicted poses drawn on the test images, one per scene |
+| [src/](src/README.md) | Pipeline modules: loading, segmentation, registration, verification, polish |
+| [scripts/](scripts/README.md) | Entry points: run the pipeline, cross-validate, ablate, analyse, train segmenters |
+| [weights/](weights/README.md) | Segmenter weights: real-trained, synthetic-only, edge (nano) |
+| [results/](results/README.md) | Prediction JSONs behind every table row, ablation, and board benchmark |
+| [analysis/](analysis/README.md) | Failure analysis, score calibration, ablation, runtime, edge model, board profile |
+| [docs/figures/](docs/figures/) | Plots used by README and report |
+| [deploy/](deploy/README.md) | Camera service, pose service, cell layer, Docker, offline install, Jetson Nano |
+| [setup.sh](setup.sh) / [run_all.sh](run_all.sh) | Environment from the pinned lock / one-command run on any release folder |
+| [score.py](score.py) / [visualize.py](visualize.py) | Released by Eureka, unchanged |
+| [requirements.txt](requirements.txt) | Unpinned dependencies; the pinned lock is `deploy/requirements-lock.txt` |
+
+## Deployment
+
+The same pipeline runs as a camera service, a pose service and a cell layer (grasp planning, hand-eye, pick policy); see [deploy/README.md](deploy/README.md) and [deploy/ARCHITECTURE.md](deploy/ARCHITECTURE.md).
+Measured on a Jetson Nano 4 GB, CPU only: 2.6-2.7 s per pick, 624 MB peak RSS, poses matching the desktop to 0.04 mm / 0.14° (`results/bench/board_nano640.json`, [deploy/jetson-nano/README.md](deploy/jetson-nano/README.md)).
+The single-process cell demo (`deploy/jetson-nano/cell_demo.py`) has not yet been run on the board.
+
+## Tools
+
+Developed with Claude Code (Anthropic) as a coding assistant under my direction; libraries Open3D, OpenCV, NumPy, SciPy, trimesh, matplotlib, Ultralytics YOLO11, BlenderProc; no external images or labels. Full disclosure: [report.md#tools-disclosure](report.md#tools-disclosure).

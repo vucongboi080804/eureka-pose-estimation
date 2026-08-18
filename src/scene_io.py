@@ -1,6 +1,6 @@
 """Scene loading and depth back-projection.
 
-Every function here follows the dataset conventions in README.md: poses are
+Every function here follows the dataset conventions in ASSIGNMENT.md: poses are
 T_camera_object, the camera frame is OpenCV (+X right, +Y down, +Z forward),
 depth is registered to the colour image and given in millimetre ticks scaled
 by ``camera.json["depth_scale"]``.

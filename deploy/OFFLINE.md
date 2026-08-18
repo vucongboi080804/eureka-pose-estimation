@@ -1,5 +1,18 @@
 # Deploying on an air-gapped industrial PC
 
+```mermaid
+flowchart LR
+    A[A. wheelhouse]:::data -- "bare metal" --> RUN[run_all.sh]:::geom
+    B[B. Docker image]:::data -- "industrial PC" --> RUN
+    C[C. Jetson image]:::data -- "Jetson Nano" --> RUN
+    RUN --> OUT[submission + overlays]:::out
+    classDef data fill:#eef2f7,stroke:#6b7a90,color:#1a1a1a
+    classDef geom fill:#e6f4ea,stroke:#3f8f5a,color:#1a1a1a
+    classDef out fill:#f3e8fd,stroke:#8e5bb8,color:#1a1a1a
+```
+
+*Three ways to carry the runtime onto a machine without internet; all three end in the same `run_all.sh`.*
+
 On a machine with internet, the whole thing is two commands:
 
 ```bash
@@ -17,7 +30,7 @@ and says so.
 
 Inference needs a Python 3.12 environment, the repo (`src/`, `scripts/`,
 `score.py`, `visualize.py`, `run_all.sh`), the two segmenter weights
-(`weights/`, 97 MB) and the release folder (`model/` + scenes). It makes no
+(`weights/`, 101 MB) and the release folder (`model/` + scenes). It makes no
 network request and downloads nothing at run time. Three ways to carry that
 onto a machine without internet:
 
@@ -74,13 +87,23 @@ image was verified (below), and it is how it should run in production.
 Jetson Nano 4 GB (JetPack 4.6, Ubuntu 18.04, glibc 2.27, aarch64): Python
 3.8 (the stock 3.6 is too old for ultralytics), **open3d 0.18.0** — 0.19
 publishes no aarch64 wheel at all — torch 2.4.1 aarch64 CPU, and the same
-`run_all.sh` entry point. Both were exercised here: the pipeline runs on
-Python 3.8 / open3d 0.18 (x86 container, poses identical to the submission)
-and the arm64 image builds and runs under qemu-user emulation on the x86
-development machine. What is *not* verified: wall-clock on the board, the
-CUDA-10.2 torch path (JetPack 4.6 publishes it for Python 3.6 only, so a
-community cp38 wheel is needed), and memory headroom inside 4 GB. See
-`deploy/jetson-nano/README.md` — start with `WORKERS=1` and pick mode.
+`run_all.sh` entry point. The pipeline runs on Python 3.8 / open3d 0.18
+(x86 container, poses identical to the submission); the arm64 image builds
+on the x86 development machine (`--platform linux/arm64`), runs under
+qemu-user emulation there, and was then carried to a real board with
+`docker save` and measured on it — JetPack 4.6 / L4T R32.7.6, Docker
+20.10, MAXN, CPU only ([`../results/bench/board_nano640.json`](../results/bench/board_nano640.json)):
+a pick takes 2.6–2.7 s per scene on the board profile
+(`config.nano.json`: one segmenter, `imgsz` 640, pick mode; 3 scenes ×
+3 repeats), peak RSS 624 MB, one-off model load 23.6 s, and the poses
+agree with the x86 run to 0.04 mm / 0.14°. The emulated figure (20.9 s,
+[`../results/bench/emulated_nano640.json`](../results/bench/emulated_nano640.json))
+was an upper bound, 7.7× the board. Still not verified: the CUDA-10.2 torch
+path (JetPack 4.6 publishes it for Python 3.6 only, so a community cp38
+wheel is needed) and memory headroom with a desktop session running (the
+board was measured headless). See
+[`jetson-nano/README.md`](jetson-nano/README.md) — start with `WORKERS=1`
+and pick mode.
 
 ## What the runtime touches
 
@@ -112,7 +135,7 @@ community cp38 wheel is needed), and memory headroom inside 4 GB. See
 | ----------------------------------------- | ---------------------------------------------------- |
 | Desktop GPU (RTX 4070 Ti SUPER), 6 workers | 40 test scenes in 135 s (147 s incl. overlays); pick mode, 1 worker: 0.7 s/scene |
 | CPU only, Docker image, 2 workers, 20-thread host busy with other jobs | 8–10 s per light scene (000001: 9.9 s, 000002: 8.4 s), 15–36 s per busy pile; all 40 test scenes + overlays via `run_all.sh` in 7 min 10 s wall (mean 20 s/scene, 800 s summed); container peaked at 1.8 GB RAM |
-| CPU only, full test split, quiet machine (`analysis/runtime.md`) | 6 workers: 40 scenes in 160 s wall (mean 21.8 s/scene, max 60 s); 2 workers: 280 s wall (mean 13.4 s/scene, max 34 s); pick mode, 1 worker: 1.4–2.4 s/scene (10 scenes), 1.6 s mean on 4 P-cores; 1.6 GB peak RSS per worker |
+| CPU only, full test split, quiet machine (`analysis/runtime.md`) | 6 workers: 40 scenes in 160 s wall (mean 21.8 s/scene, max 60 s); 2 workers: 280 s wall (mean 13.4 s/scene, max 34 s); pick mode, 1 worker: 1.8 s mean / 2.4 s max per scene (10 scenes), 1.6 s mean on 4 P-cores; 1.6 GB peak RSS per worker |
 
 Per-scene time scales with the number of proposals (each mask costs one
 RANSAC/ICP/verify chain) on top of the two segmenter passes; the GPU
@@ -131,12 +154,13 @@ fraction of the scene time.
 - **Pick mode.** `pick=True` stops at the first pose scoring ≥ 0.8
   (segmenter confidence × depth verification) — one confident pick per
   cycle, then grab and rescan; a bin changes after every pick, so a full
-  ranking is wasted work. On test/000001 this returned in 0.7 s where the
-  full scan took 15 s. `deploy/pick_demo.py` runs exactly this path on a
+  ranking is wasted work. On the desktop GPU a pick returns in 0.7 s on
+  average where the full sweep takes 12 s per scene
+  (`analysis/runtime.md`). `deploy/pick_demo.py` runs exactly this path on a
   scene folder (arrays in, grasp pose out) — the check to run on a new
   machine or after a recalibration. Gate on `score`: ≥ 0.7 keeps precision
-  1.00 at 5 mm on cross-validated train scenes, ≥ 0.6 keeps 0.95 at 10 mm
-  (`analysis/score_calibration.md`).
+  0.99 at 5 mm on cross-validated train scenes, ≥ 0.6 keeps 0.96 at 10 mm
+  (0.94 at 5 mm; `analysis/score_calibration.md`).
 - **Failure handling.** `run_pipeline.py` already isolates scenes: an
   exception yields an empty list for that scene, never a crash. For a cell:
   wrap each cycle in a watchdog (a scene should never exceed ~60 s on the

@@ -5,6 +5,22 @@ service that answers. This file is the other half: the measurable statement
 that the board is *right*, the thresholds that statement is made of, where
 each number comes from, and what to do when one of them fails.
 
+```mermaid
+flowchart LR
+  P["1 POSE<br/>≤ 2 mm / 2°"] --> C["2 CYCLE<br/>median ≤ 8 s"]
+  C --> S["3 SCORE<br/>top ≥ 0.7"]
+  S --> X["exit 0"]
+  M["4 MEMORY<br/>< 80 % MemoryMax"] --> V["5 SERVICE<br/>ready, digest, active"]
+  V --> J["6 JOURNAL<br/>no OOM, no restart"]
+  J --> X
+  classDef check fill:#fff4e5,stroke:#d08a2b,color:#1a1a1a
+  classDef out fill:#f3e8fd,stroke:#8e5bb8,color:#1a1a1a
+  class P,C,S,M,V,J check
+  class X out
+```
+
+*The six gates `accept.sh` prints in `summary.txt`, each with its pass condition, all six for `exit 0`; POSE is the only correctness claim, the rest say the board is in the state that was measured.*
+
 `deploy/jetson-nano/accept.sh` collects the evidence. Run it after
 provisioning, after a board swap, after a recalibration, and after any change
 to `config.nano.json` or `weights/`:
@@ -142,7 +158,7 @@ confidence × depth verification, and on leave-scenes-out cross-validation
 0.786. 0.6 buys recall back (0.872 at 10 mm) for precision 0.94 at 5 mm;
 below 0.4 a prediction is wrong more often than right. Read it as a rank, not
 a probability — it is only roughly calibrated (ECE 0.143) and its ranking is
-what is trustworthy (AUROC 0.96 against correct-at-5-mm).
+what is trustworthy (AUROC 0.94 against correct-at-5-mm).
 
 The two thresholds are different on purpose. Pick mode stops the sweep at the
 first pose scoring ≥ 0.8 (`pick_score` in `config.nano.json`); the cell

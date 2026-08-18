@@ -13,7 +13,7 @@ out_*/
 plans/
 results/
 analysis/
-analysis/
+docs/
 __pycache__/
 *.json
 /*.pt

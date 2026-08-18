@@ -14,7 +14,7 @@ constructor and detector calls scripts/run_pipeline.py makes per scene.
     scene = scene_from_arrays(rgb_bgr, depth_raw, K, depth_scale)
     poses = estimate_scene(scene, model_cloud, seg, extra, pick=True)
 
-Requirements on the camera stream match README.md: depth registered to the
+Requirements on the camera stream match ASSIGNMENT.md: depth registered to the
 colour image (same resolution, same pixel grid), pinhole intrinsics ``K``
 of that colour image, no lens distortion, ``depth_scale`` turning raw depth
 ticks into metres (0 = no measurement). Poses come back as T_camera_object

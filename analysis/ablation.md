@@ -122,7 +122,7 @@ never outrank solid ones.
 
 **GT masks** (`train_gt_masks.json`). One perfect proposal per labelled
 instance, registration stack unchanged: the ceiling the *masks* impose,
-AR 0.832 with the best 10 mm recall (0.974) and precision (0.974) of any
-row. The learned-mask rows exceed it in AR because they register each
+AR 0.848 with the best 10 mm recall (0.991) and precision (0.983) of any
+row. The learned-mask rows edge past it in AR because they register each
 instance several times (better 2–4 mm recall) while trailing it at 10 mm
-by four instances the predicted masks do not deliver.
+by the duplicate labels it alone can claim twice.

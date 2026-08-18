@@ -28,8 +28,9 @@ but 3.4 s of wall per scene — while the single worker with 20 threads
 needs 12.1 s per scene: parallelism over scenes pays, threads inside
 Open3D pay little (next section). The GPU only serves the two segmenters, so
 CPU-only costs 19 % more wall at 6 workers. The pose count moves 389–396
-between identical runs (the RANSAC draws differ); the committed
-`submission.json` has 391.
+between identical runs (the RANSAC draws differ); these timings predate the
+RGB hole cue, which costs +2.5 % wall (`ablation.md`) and left the committed
+`submission.json` with 363 poses under the tighter own-mask check.
 
 ## Latency: pick mode (`--pick`, one confident pose per scene)
 

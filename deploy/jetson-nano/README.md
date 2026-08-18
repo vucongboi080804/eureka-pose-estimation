@@ -16,6 +16,49 @@ the CUDA torch wheel is on PyPI as `cp38 aarch64` wheels that install on
 glibc 2.27 (`requirements-jetson-nano.txt`; open3d must be 0.18.0 — 0.19
 ships no aarch64 wheel at all).
 
+## At a glance
+
+| | |
+| --- | --- |
+| **The board runs** | [`config.nano.json`](config.nano.json): `weights/part-seg-nano.pt` (YOLO11n-seg, 6.0 MB), one segmenter, `seg_imgsz` 640, pick mode, CPU only — the pose service inside the aarch64 Docker image on `127.0.0.1:8080`, accept gate 0.7. |
+| **Measured on a real Jetson Nano 4 GB** | JetPack 4.6, MAXN, headless: one pick **2.6–2.7 s**, peak RSS **624 MB**, one-off model load 23.6 s, poses agree with x86 to 0.04 mm / 0.14° ([`results/bench/board_nano640.json`](../../results/bench/board_nano640.json)). Full 40-scene sweep on the board: 329 poses, 95.1 % within 2 mm / 2° of the x86 run against 96.7 % for two x86 runs — indistinguishable from another RANSAC draw ([`results/board/test_sweep_nano640.json`](../../results/board/test_sweep_nano640.json)). |
+| **Not yet verified** | the CUDA-10.2 torch path (every board number is CPU); the systemd unit on the board (the board ran the Docker image); [`cell_demo.py`](cell_demo.py) on the board (the board was offline); a real camera on the live path. |
+| **Pass/fail** | [`ACCEPTANCE.md`](ACCEPTANCE.md): six gates, evidence collected by [`accept.sh`](accept.sh). |
+
+```mermaid
+flowchart LR
+  A["0 Board prep"] --> B["1–2 venv or Docker"]
+  B --> C["3–4 Weights, config"]
+  C --> D["5 systemd unit"]
+  E["6 /healthz ready"] --> F["7 First pick"]
+  F --> G["8 Benchmark"]
+  G --> H["accept.sh"]
+  classDef data fill:#eef2f7,stroke:#6b7a90,color:#1a1a1a
+  classDef check fill:#fff4e5,stroke:#d08a2b,color:#1a1a1a
+  classDef out fill:#f3e8fd,stroke:#8e5bb8,color:#1a1a1a
+  class A,B,C,D data
+  class E,F check
+  class G,H out
+```
+
+*Bring-up in step order, 0–5 then 6–8; `accept.sh` repeats the health check and the benchmark (6, 8) as the six-gate acceptance.*
+
+| File | What it is |
+| --- | --- |
+| [`Dockerfile`](Dockerfile) | aarch64 image (Ubuntu 18.04, Python 3.8, pinned wheels); build on x86, `docker save` it over |
+| [`provision.sh`](provision.sh) | the bring-up below as one command over ssh; `--dry-run` first |
+| [`preflight.sh`](preflight.sh) | is the board reachable and what it claims to be, before anything is copied |
+| [`accept.sh`](accept.sh) | collects the six-gate evidence of [`ACCEPTANCE.md`](ACCEPTANCE.md) into one directory |
+| [`uninstall.sh`](uninstall.sh) | removes what `provision.sh` installed, nothing else |
+| [`emulate.sh`](emulate.sh) | `bench.py` inside the aarch64 image under qemu, with the board's CPU and RAM limits |
+| [`bench.py`](bench.py) | one machine-readable timing record: host fingerprint, stage times, peak RSS, the poses |
+| [`compare_bench.py`](compare_bench.py) | diffs two records: same poses (gated at 2 mm / 2°), speed ratio (reported, no verdict) |
+| [`cell_demo.py`](cell_demo.py) | camera, service and cell in one process, writes an annotated video; not yet run on the board |
+| [`config.nano.json`](config.nano.json) | the board profile the service loads |
+| [`pose-service.service`](pose-service.service) | systemd unit: user `pose`, `MemoryMax=2600M`, restart on failure, stays failed after five crashes |
+| [`requirements-jetson-nano.txt`](requirements-jetson-nano.txt), [`.lock.txt`](requirements-jetson-nano.lock.txt) | the loose pins, and the exact resolution the image installed |
+| [`ACCEPTANCE.md`](ACCEPTANCE.md) | when the board is right: six gates, their thresholds, what to do when one fails |
+
 ---
 
 ## Bring-up
@@ -98,13 +141,18 @@ the same thing in one command.
 
 ### 3. Weights and CAD model
 
-The service reads three files that are **not** produced at run time:
+The service reads two files that are **not** produced at run time:
 
 | File | Size | What it is |
 | --- | --- | --- |
-| `weights/part-seg.pt` | 56 MB | YOLO11l-seg fine-tuned on the 20 train scenes |
-| `weights/part-seg-synthetic.pt` | 45 MB | YOLO11m-seg on 1140 synthetic renders — *off* on the Nano, see below |
+| `weights/part-seg-nano.pt` | 6.0 MB | YOLO11n-seg trained at 640, the board profile's single segmenter (`analysis/edge_model.md`) |
 | `model/3d_model.ply` | — | the CAD part, sampled into the registration cloud at startup |
+
+The desktop pair — `weights/part-seg.pt` (56 MB, YOLO11l-seg fine-tuned on
+the 20 train scenes) and `weights/part-seg-synthetic.pt` (45 MB, YOLO11m-seg
+on 1140 synthetic renders) — is what `submission.json` was made with; the
+board profile loads neither, and `bench.py --seg-model` is how to compare
+against them.
 
 Copy `weights/` from the repo and `model/` from the release folder into
 `/opt/pose-estimation/`. A missing or unreadable path is a startup failure,
@@ -113,24 +161,24 @@ requests it cannot serve.
 
 ### 4. Config
 
-`deploy/jetson-nano/config.nano.json` is the board profile: one segmenter
-(`extra_seg_weights: null`), `seg_imgsz` 640, `pick` on, `accept_score` 0.7,
+`deploy/jetson-nano/config.nano.json` is the board profile: `seg_weights`
+`weights/part-seg-nano.pt`, one segmenter (`extra_seg_weights: null`),
+`seg_imgsz` 640, `pick` on, `accept_score` 0.7,
 `max_concurrency` 1, `omp_threads` 4, bound to `127.0.0.1:8080`. That is the
 configuration `analysis/nano_profile.md` prices as the board's stop, and the
-one every service number in this file was measured on; check the paths match
+one every `results/bench/*_nano640.json` record was measured on; check the paths match
 where you unpacked, and leave the rest alone until the board has been
 measured — the knobs and what they cost are in *Resource budget*.
 
-**One open call before the board is committed to.** `analysis/edge_model.md`
-measures a 2.84 M-parameter `weights/part-seg-nano.pt` trained at 640 and
-finds it indistinguishable from the 27.62 M `part-seg.pt` on end-to-end pose
-accuracy (AR 0.837 vs 0.838, top-1 1.000 for both) for 16.9x less weight and
-a 5.8x faster forward pass on CPU. If that holds, the board profile becomes
-`"seg_weights": "weights/part-seg-nano.pt"` — a one-line change, no other
-setting moves. It is not the default here because the service and emulation
-numbers below were taken on `part-seg.pt`, and a profile whose documented
-latency and memory belong to a different weight is worse than a slower one
-that is honest. Switch it, then re-run step 8 on both sides.
+**The weight.** `weights/part-seg-nano.pt` is a 2.84 M-parameter YOLO11n-seg
+trained at 640; `analysis/edge_model.md` finds it indistinguishable from the
+27.62 M `part-seg.pt` on end-to-end pose accuracy (AR 0.837 vs 0.838, top-1
+1.000 for both) for 16.9x less weight and a 5.8x faster forward pass on CPU,
+which is why it is the board profile's segmenter. Every board, emulated and
+x86 record in step 8 (`results/bench/*_nano640.json`) was measured on it; a
+profile whose documented latency and memory belong to a different weight is
+worse than a slower one that is honest, so a change of weight means
+re-running step 8 on both sides.
 
 The service validates the whole file before it reads a single weight, so a
 typo, a missing `.pt`, or an `accept_score` above `pick_score` (a cell that
@@ -203,15 +251,16 @@ request/response contract itself is `deploy/pose_service/schema.py`):
     --scene /path/to/release/test/000001
 ```
 
-It prints `gate=pick`, one pose and a `score` around 0.83, and exits 0 (2 is
+It prints `gate=pick`, one pose and a `score` around 0.85, and exits 0 (2 is
 `rescan`, 1 a failed request). The client's own watchdog defaults to 120 s;
 a cold board, or the emulated run below, can take longer than that on the
 first frame, and the client then says so and tells you to raise `--timeout`. Pick mode commits to the first instance that
 clears `PICK_SCORE`, which is not usually `submission.json`'s top-ranked one,
 so the check is that the returned pose *coincides with an instance the
-submission holds* for that scene: on the x86 development machine test/000001
-came back 0.03 mm and 0.28 deg from `submission["000001"][4]`, and test/000015
-0.09 mm and 0.48 deg from `submission["000015"][3]`.
+submission holds* for that scene: on the x86 development machine, this profile
+(`results/bench/native_nano640.json`), test/000001 came back 0.05 mm and
+0.27 deg from `submission["000001"][4]`, and test/000015 0.5 mm and 0.9 deg
+from `submission["000015"][0]`.
 
 ### 8. Benchmark, and compare against the emulated baseline
 
@@ -293,7 +342,7 @@ appetite is dominated by the registration working set, not by the network:
 | Same, inside the CPU container | 1.8 GB peak | `deploy/OFFLINE.md` |
 | Segmenter weights on disk | 56 MB + 45 MB | `weights/` |
 | Segmenter activations | scale with `imgsz`<sup>2</sup> | `src/detect_seg.py:masks_from_model` |
-| Board profile (one segmenter, 640), 4 cores pinned | 1.31 GB peak RSS | `analysis/nano_profile.md` (x86, 4 pinned cores) |
+| One YOLO11l segmenter at 640, 4 cores pinned (the profile before `part-seg-nano.pt`) | 1.31 GB peak RSS | `analysis/nano_profile.md` (x86, 4 pinned cores) |
 | **Same profile on the aarch64 stack** | **0.74 GB peak RSS** | `results/bench/emulated_nano640.json` — emulated, but the board's own torch 2.4.1 / open3d 0.18 / numpy 1.24 rather than x86's much newer set, so this is the closer estimate |
 | The service holding that profile across frames | 0.95 GB after load, 1.71 GB RSS | measured here (x86, `/healthz` after two frames) |
 | **The same on the Nano, measured** | **624 MB peak RSS** | `results/bench/board_nano640.json` — real hardware, Docker, MAXN |
@@ -338,14 +387,14 @@ latency budget. `MemoryMax` in the unit is the real guard.
    what the submission uses). Masks are resized back to the full frame
    either way, so lowering it costs segmentation detail and nothing else,
    while activation memory falls with the square. Measured: 960 -> 640 costs
-   0.002 AR with one segmenter and 0.007 with two, both inside the ±0.005
-   draw-to-draw band, for 0.13 GB less peak RSS — so `config.nano.json`
+   0.002 AR with one segmenter and 0.007 with two, both inside the
+   draw-to-draw spread (±0.015 for one segmenter, ±0.005 for two), for
+   0.13 GB less peak RSS — so `config.nano.json`
    ships **640**, the knee `analysis/nano_profile.md` recommends. Below 640
    is not worth measuring: the segmenters are ~2 % of scene time to begin
    with.
-   *(`scripts/run_pipeline.py` has no `--imgsz` flag — there the constant is
-   `SEG_IMGSZ` in `src/detect_seg.py`. `bench.py` and the service both take
-   it as a setting.)*
+   *(`scripts/run_pipeline.py --imgsz`, `bench.py --imgsz` and the service's
+   `seg_imgsz` all set it; the default is `SEG_IMGSZ` in `src/detect_seg.py`.)*
 
 **GPU.** JetPack 4.6 ships CUDA torch for Python 3.6 only; for 3.8 use a
 community CUDA-10.2 build (e.g. Qengineering's *PyTorch-Jetson-Nano* wheels,
@@ -355,7 +404,7 @@ build beyond ultralytics' inference call. It is worth little: the GPU
 accelerates only the segmenters, which are ~2 % of scene time
 (`analysis/runtime.md`), and RANSAC/ICP stay on the CPU. TensorRT export is
 not an option here (the JetPack 4.6 TensorRT Python bindings are 3.6-only).
-Not exercised in this repository — no board was available.
+Not exercised in this repository — the board was measured CPU-only.
 
 ---
 
@@ -368,7 +417,7 @@ for precision 0.94 at 5 mm, and below 0.4 a prediction is wrong more often
 than right
 (`analysis/score_calibration.md`). Read it as a rank, not a probability —
 it is only roughly calibrated (ECE 0.143), and its ranking is what is
-trustworthy (AUROC 0.96 against correct-at-5-mm).
+trustworthy (AUROC 0.94 against correct-at-5-mm).
 
 Note the two thresholds are different on purpose: **pick mode stops the
 sweep at the first pose scoring >= 0.8** (`PICK_SCORE`), while the cell
@@ -493,7 +542,10 @@ here because it cannot be tested off-board.
   with open3d 0.18 (x86 container: test/000001 and 000002 give the same 9
   and 5 poses as the submission).
 
-- **Verified (x86, natively, against this config).** The service comes up on
+- **Verified (x86, natively, service mode).** Measured on the board profile
+  before `part-seg-nano.pt` existed (one YOLO11l segmenter at 640; the
+  current profile's x86 record is `results/bench/native_nano640.json`,
+  0.29–0.31 s per pick): the service comes up on
   `config.nano.json`, reports ready 6.0 s after launch (3.9 s load, 1.0 s
   warmup) and answers `/v1/estimate` for test/000001 in 0.55 s and for the
   dense test/000015 in 1.0 s, both `gate=pick`. Each returned pose coincides
@@ -512,12 +564,15 @@ here because it cannot be tested off-board.
   service. `docker run --platform linux/arm64 --network none --cpus 4
   --memory 4g --memory-swap 6g` with the service as the entry point (the
   command in *Docker on the board*, minus `--network host`, which has nothing
-  to reach on this machine): ready after
+  to reach on this machine), on the profile before `part-seg-nano.pt` (one
+  YOLO11l segmenter at 640): ready after
   **166 s** (51.0 s load + 115.2 s warmup), one pick for test/000001 in
   **111.8 s** (107.7 s of it the segmenter), service RSS **878 MB**, cgroup
   `memory.peak` **864 MB**. The pose is the native one to **0.02 mm /
   0.07 deg** (score 0.8235 vs 0.8250). `bench.py` inside the same container
-  against a native record, both at the board profile:
+  against a native record, both on the current board profile
+  (`part-seg-nano.pt`, `results/bench/emulated_nano640.json` and
+  `native_nano640.json`):
 
   ```
   scene    qemu s  x86_64 s  ratio  poses  max mm  max deg  d score  output
@@ -579,7 +634,7 @@ here because it cannot be tested off-board.
   leaves the unit's `MemoryMax=2600M` a factor of four.
 
   Both emulated predictions can now be scored, which is the point of having
-  made them: **time was 7.6x pessimistic** (qemu said 20.9 s for the pick
+  made them: **time was 7.7x pessimistic** (qemu said 20.9 s for the pick
   that takes 2.7 s) and **memory was 19 % over** (740 MB against 624 MB) —
   so the emulated column was the closer of the two estimates, as claimed,
   and the emulated *time* was an upper bound rather than an estimate, also

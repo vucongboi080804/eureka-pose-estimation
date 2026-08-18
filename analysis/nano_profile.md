@@ -125,10 +125,10 @@ stand in for the Nano's four A57s. Numbers in `results/nano_runtime.json`.
 
 Model + segmenter load is a one-off 2.8–3.9 s per process in every row.
 
-These ten rows came from a throwaway harness, not a shipped entry point:
-`scripts/run_pipeline.py` has no `--imgsz` passthrough yet, so the 768 and
-640 rows have no one-command form. The two 960 rows do, and they are the
-ones to re-run first on the board:
+These ten rows came from a throwaway harness, not a shipped entry point;
+`scripts/run_pipeline.py --imgsz` has since been added, so every row now has
+a one-command form. The two 960 rows are the ones to re-run first on the
+board (add `--imgsz 640` for the 640 rows):
 
 ```
 .venv/bin/python scripts/run_pipeline.py --split test --workers 1 --pick \
