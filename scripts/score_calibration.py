@@ -117,7 +117,7 @@ def component_split(root: str, scenes: dict, hull, mesh) -> tuple:
     """Re-run detection on a few held-out scenes to obtain (seg_conf,
     verification, correct@5mm) triples; returns rows and AUROC per factor."""
     from ultralytics import YOLO
-    from src.detect import part_pixel_mask
+    from src.masks import part_pixel_mask
     from src.detect_seg import detect_from_masks, masks_from_model
     from src.model_cloud import load_model_cloud
     from src.register import PoseEstimator

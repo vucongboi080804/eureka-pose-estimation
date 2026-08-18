@@ -38,7 +38,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(
 from deploy.pick.grasp import GraspPlanner, default_grasps_path
 from deploy.pick.policy import CellFrame, PickHistory, PickPolicy
 from deploy.demo.hud import FrameHud, HudFrame, hardware_line
-from src.detect import part_pixel_mask
+from src.masks import part_pixel_mask
 from src.detect_seg import detect_scene_hybrid
 from src.model_cloud import load_model_cloud
 from src.register import PoseEstimator

@@ -22,7 +22,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.detect import part_pixel_mask
+from src.masks import part_pixel_mask
 from src.scene_io import backproject, list_scenes, load_scene
 from src.model_cloud import load_model_cloud
 from src.register import PoseEstimator

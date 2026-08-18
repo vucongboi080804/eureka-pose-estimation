@@ -33,7 +33,7 @@ from typing import Any, Callable, Dict, Iterator, Optional, Sequence, Tuple
 import cv2
 import numpy as np
 
-from src.detect import part_pixel_mask
+from src.masks import part_pixel_mask
 from src.detect_seg import PICK_SCORE, detect_scene_hybrid
 from src.register import PoseEstimator
 from src.scene_io import Scene, load_scene

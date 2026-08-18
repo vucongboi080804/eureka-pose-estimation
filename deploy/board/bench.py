@@ -447,7 +447,7 @@ def main(argv=None) -> int:
     })
 
     # Imported here, after the profile is applied: see _apply_profile.
-    from src.detect import part_pixel_mask
+    from src.masks import part_pixel_mask
     from src.detect_seg import detect_scene_hybrid
     from src.model_cloud import load_model_cloud
     from src.register import PoseEstimator

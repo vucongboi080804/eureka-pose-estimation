@@ -17,11 +17,11 @@ import json
 import os
 import sys
 
-import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.detect import NMS_ANGLE_DEG, NMS_DIST, part_pixel_mask
+from src.masks import part_pixel_mask
+from src.nms import is_duplicate
 from src.detect_seg import SEG_IMGSZ, detect_from_masks, masks_from_model
 from src.model_cloud import load_model_cloud
 from src.register import PoseEstimator
@@ -29,19 +29,10 @@ from src.scene_io import load_scene
 
 
 def merge_nms(rows: list) -> list:
-    """NMS over submission rows: same place AND same orientation = dup."""
+    """NMS over submission rows, by the detector's own duplicate rule."""
     kept = []
     for row in sorted(rows, key=lambda r: -r["score"]):
-        R, t = np.array(row["R"]), np.array(row["t"])
-        dup = False
-        for k in kept:
-            if np.linalg.norm(t - np.array(k["t"])) > NMS_DIST:
-                continue
-            cos = (np.trace(R.T @ np.array(k["R"])) - 1.0) / 2.0
-            if np.degrees(np.arccos(np.clip(cos, -1, 1))) < NMS_ANGLE_DEG:
-                dup = True
-                break
-        if not dup:
+        if not any(is_duplicate(row["R"], row["t"], k["R"], k["t"]) for k in kept):
             kept.append(row)
     return kept
 

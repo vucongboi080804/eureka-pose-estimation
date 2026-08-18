@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.join(ROOT_DIR, "scripts"))
 
 import score  # noqa: E402
 from eval_seg_folds import FOLD_VAL_SCENES  # noqa: E402
-from src.detect import part_pixel_mask  # noqa: E402
+from src.masks import part_pixel_mask  # noqa: E402
 from src.detect_seg import MIN_MASK_PX, MIN_PART_COLOUR_FRACTION, masks_from_model  # noqa: E402
 from src.model_cloud import load_model_cloud  # noqa: E402
 

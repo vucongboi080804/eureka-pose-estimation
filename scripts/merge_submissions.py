@@ -13,26 +13,17 @@ import json
 import sys
 import os
 
-import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.detect import NMS_ANGLE_DEG, NMS_DIST
+from src.nms import is_duplicate
 
 
 def merge_nms(rows: list) -> list:
+    """NMS over submission rows, by the detector's own duplicate rule."""
     kept = []
     for row in sorted(rows, key=lambda r: -r["score"]):
-        R, t = np.array(row["R"]), np.array(row["t"])
-        dup = False
-        for k in kept:
-            if np.linalg.norm(t - np.array(k["t"])) > NMS_DIST:
-                continue
-            cos = (np.trace(R.T @ np.array(k["R"])) - 1.0) / 2.0
-            if np.degrees(np.arccos(np.clip(cos, -1, 1))) < NMS_ANGLE_DEG:
-                dup = True
-                break
-        if not dup:
+        if not any(is_duplicate(row["R"], row["t"], k["R"], k["t"]) for k in kept):
             kept.append(row)
     return kept
 
