@@ -59,8 +59,9 @@ in a minute.
 On any machine with the environment (`./setup.sh`):
 
 ```bash
-# terminal 1 — camera, replaying a recorded split
-.venv/bin/python -m deploy.camera_service.server --config deploy/jetson-nano/config.camera.json
+# terminal 1 — camera, replaying a recorded session (or a split)
+.venv/bin/python -m deploy.camera_service.server \
+    --source session --root sessions/test40 --port 8720
 
 # terminal 2 — vision
 .venv/bin/python -m deploy.pose_service.server --config deploy/jetson-nano/config.nano.json
@@ -71,7 +72,11 @@ On any machine with the environment (`./setup.sh`):
 
 On the board both services come up as systemd units
 (`deploy/jetson-nano/*.service`); the runbook is
-`deploy/jetson-nano/README.md`. The batch entry points (`run_all.sh`,
+`deploy/jetson-nano/README.md`. For a demonstration or a first check on new
+hardware, `deploy/jetson-nano/cell_demo.py` collapses the three processes
+into one — same estimator, planner, policy and renderer, one model load, no
+loopback — and writes the annotated video as it goes. The split above is how
+a line is built; the single file is how a board is answered. The batch entry points (`run_all.sh`,
 `scripts/run_pipeline.py`) stay exactly as they were — the service layer wraps
 the same pipeline rather than forking it, and `deploy/pose_service/service.py`
 calls the same `detect_scene_hybrid` and `PoseEstimator` that produced the

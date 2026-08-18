@@ -24,3 +24,4 @@ yolo11m-seg.pt
 seg_runs_l/
 seg_runs_n/
 seg_l_train.json
+sessions/

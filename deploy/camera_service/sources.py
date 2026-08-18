@@ -432,6 +432,10 @@ def source_from_config(config: Any) -> FrameSource:
                                  depth_dropout=config.depth_dropout,
                                  depth_noise_mm=config.depth_noise_mm,
                                  jitter_ms=config.jitter_ms, seed=config.seed)
+    if config.source == "session":
+        from .session import VideoSource
+        return VideoSource(path=config.root, scenes=config.scene_ids() or None,
+                           loop=config.loop, fps=config.fps)
     if config.source == "realsense":
         return RealSenseSource(serial=config.rs_serial, width=config.rs_width,
                                height=config.rs_height, fps=config.rs_fps)

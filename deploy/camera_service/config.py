@@ -28,7 +28,7 @@ LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 
 #: The sources a frame can come from: recorded scenes replayed as a
 #: stream, or an Intel RealSense on the cell.
-SOURCE_KINDS = ("scene_folder", "realsense")
+SOURCE_KINDS = ("scene_folder", "session", "realsense")
 
 #: Highest frame rate the pacing accepts. Above this the replay is
 #: bounded by disk and PNG decode anyway, and the number is more likely
@@ -187,6 +187,8 @@ class CameraConfig:
                               % (", ".join(SOURCE_KINDS), self.source))
         if self.source == "scene_folder":
             self._validate_scene_folder()
+        elif self.source == "session":
+            self._validate_session()
         else:
             self._validate_realsense()
         if not 0.0 <= self.fps <= MAX_FPS:
@@ -230,6 +232,17 @@ class CameraConfig:
         elif not any(os.path.isdir(os.path.join(split_dir, name))
                      for name in os.listdir(split_dir)):
             raise ConfigError("split %s holds no scene folders" % split_dir)
+
+    def _validate_session(self) -> None:
+        """A session replays a recording; `root` is its directory.
+
+        Checked here rather than at open() because a missing manifest is
+        a configuration mistake, and the service should refuse to start
+        rather than serve its first frame and then die.
+        """
+        manifest = os.path.join(self.root, "session.json")
+        if not os.path.isfile(manifest):
+            raise ConfigError("session: no session.json in %s" % self.root)
 
     def _validate_realsense(self) -> None:
         if self.rs_width < 64 or self.rs_height < 64:
