@@ -306,6 +306,13 @@ def _describe_source(source: Dict[str, Any]) -> str:
                    source.get("scenes", 0), source.get("next_scene"),
                    source.get("laps", 0),
                    "on" if source.get("loop") else "off"))
+    if source.get("kind") == "session":
+        session = source.get("session") or {}
+        return ("%s  %d frame(s) of %d, at %s, %d lap(s), loop %s"
+                % (source.get("path"), source.get("scenes", 0),
+                   session.get("frames", 0), source.get("next_scene"),
+                   source.get("laps", 0),
+                   "on" if source.get("loop") else "off"))
     return ("serial %s  %sx%s@%s" % (source.get("serial"),
                                      source.get("width"),
                                      source.get("height"), source.get("fps")))
